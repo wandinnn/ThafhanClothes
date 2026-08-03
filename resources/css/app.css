@@ -1,0 +1,154 @@
+@import 'tailwindcss';
+
+@source '../views';
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+
+@theme {
+    --font-sans: 'Times New Roman', Times, serif;
+
+    --color-deep:        #1F2A2A;
+    --color-deep-dark:   #151E1E;
+    --color-beige:       #FFF6DE;
+    --color-beige-dark:  #FFE394;
+    --color-teal:        #8BDFDD;
+    --color-teal-dark:   #5DB6AD;
+    --color-coral:       #F48F68;
+    --color-background:  #FFF6DE;
+    --color-surface:     #FFE394;
+
+    --color-primary:     #8BDFDD;
+    --color-secondary:   #F48F68;
+    --color-accent:      #1F2A2A;
+    --color-text:        #1F2A2A;
+}
+
+/*
+ * Safelist untuk kelas yang dipakai dinamis di JavaScript
+ * (modal size/color pills, dll)
+ */
+@source inline("px-3.5 py-1.5 rounded-lg text-sm font-medium border border-[#FFF6DE]/50 text-[#1F2A2A] hover:border-[#F48F68] transition-all bg-[#F48F68] text-[#1F2A2A] font-bold outline-none outline-offset-2 scale-110 hover:scale-110 flex items-center justify-center w-8 h-8 rounded-full border-2 border-transparent bg-[#8BDFDD] bg-[#FFF6DE] bg-[#FFE394] border-[#FFF6DE] text-[#1F2A2A] text-[#1F2A2A] bg-[#FFF6DE] bg-[#F48F68] hover:bg-[#D96B4B]");
+
+/* ===========================
+   Animations
+   =========================== */
+@keyframes fade-up {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.animate-fade-up  { animation: fade-up  0.6s ease-out forwards; }
+.animate-fade-in  { animation: fade-in  0.5s ease-out forwards; }
+
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.10s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.20s; }
+.stagger-5 { animation-delay: 0.25s; }
+.stagger-6 { animation-delay: 0.30s; }
+
+/* ===========================
+   Navbar gold underline
+   =========================== */
+.nav-link {
+    position: relative;
+    transition: color 0.2s;
+}
+.nav-link::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--color-gold);
+    transform: scaleX(0);
+    transition: transform 0.25s ease;
+}
+.nav-link:hover::after,
+.nav-link.active::after {
+    transform: scaleX(1);
+}
+
+/* ===========================
+   Gold separator
+   =========================== */
+.gold-line {
+    width: 48px;
+    height: 3px;
+    background: var(--color-gold);
+    border-radius: 2px;
+    margin-bottom: 1rem;
+}
+
+/* ===========================
+   Product card
+   =========================== */
+.product-card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.product-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.12);
+}
+.product-card .card-img-wrap {
+    overflow: hidden;
+}
+.product-card .card-img-wrap img {
+    transition: transform 0.5s ease;
+}
+.product-card:hover .card-img-wrap img {
+    transform: scale(1.07);
+}
+
+/* ===========================
+   Button & card animations
+   =========================== */
+.btn-action {
+    transition: transform 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease;
+}
+.btn-action:hover {
+    transform: translateY(-2px) scale(1.01);
+    box-shadow: 0 14px 30px rgba(0,0,0,0.12);
+}
+.btn-action:active {
+    transform: scale(0.99);
+}
+
+.category-card,
+.product-card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.category-card:hover,
+.product-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.10);
+}
+
+.category-card .card-img-wrap,
+.product-card .card-img-wrap {
+    overflow: hidden;
+}
+
+.category-card .card-img-wrap img,
+.product-card .card-img-wrap img {
+    transition: transform 0.5s ease;
+}
+
+.category-card:hover .card-img-wrap img,
+.product-card:hover .card-img-wrap img {
+    transform: scale(1.06);
+}
+
+/* ===========================
+   Promo banner box style
+   =========================== */
+.promo-box {
+    border-radius: 2rem;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.14);
+    overflow: hidden;
+}
