@@ -1,0 +1,52 @@
+﻿# =============================================================================
+# Cursor ignore — kurangi indexing / AI context / file watch beban laptop
+# Folder berat Laravel & build artifacts. Jangan indeks ini.
+# =============================================================================
+
+# Dependencies
+/node_modules/
+/vendor/
+
+# Frontend build & Vite
+/public/build/
+/public/hot
+/public/fonts-manifest.dev.json
+
+# Storage runtime (compiled views, cache, sessions, logs, testing disks)
+/storage/framework/
+/storage/logs/
+/storage/pail/
+/storage/*.key
+/storage/app/private/
+/bootstrap/cache/
+
+# Local DB & test caches
+/database/*.sqlite
+/database/*.sqlite-journal
+/.phpunit.cache/
+.phpunit.result.cache
+
+# Env & secrets
+.env
+.env.backup
+.env.production
+.env.*.local
+/auth.json
+
+# IDE / tooling noise
+/.idea/
+/.fleet/
+/.nova/
+/.zed/
+/.vscode/
+/.phpactor.json
+
+# Logs & lock noise (keep package-lock / composer.lock tracked by git)
+npm-debug.log
+yarn-error.log
+*.log
+
+# OS junk
+Thumbs.db
+Desktop.ini
+.DS_Store

@@ -1,24 +1,66 @@
+# =============================================================================
+# Laravel / Node — artifact & dependency ignores
+# =============================================================================
+
+# PHPUnit / tooling caches
 /.phpunit.cache
+.phpunit.result.cache
+.phpactor.json
+
+# Dependencies
 /node_modules
+/vendor
+
+# Frontend build (Vite)
 /public/build
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
+
+# Storage runtime (isi folder diabaikan lewat .gitignore lokal; belt-and-suspenders)
 /storage/*.key
 /storage/pail
-/vendor
+/storage/framework/cache/data/*
+!/storage/framework/cache/data/.gitignore
+/storage/framework/sessions/*
+!/storage/framework/sessions/.gitignore
+/storage/framework/testing/*
+!/storage/framework/testing/.gitignore
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
+/storage/logs/*
+!/storage/logs/.gitignore
+/storage/app/private/*
+!/storage/app/private/.gitignore
+/bootstrap/cache/*
+!/bootstrap/cache/.gitignore
+
+# Local SQLite (juga ada di database/.gitignore)
+/database/*.sqlite
+/database/*.sqlite-journal
+
+# Environment & secrets
 .env
 .env.backup
 .env.production
-.phpactor.json
-.phpunit.result.cache
+.env.*.local
+/auth.json
+
+# Homestead / debug logs
 Homestead.json
 Homestead.yaml
 npm-debug.log
 yarn-error.log
-/auth.json
+*.log
+
+# IDE
 /.fleet
 /.idea
 /.nova
 /.vscode
 /.zed
+
+# OS junk
+Thumbs.db
+Desktop.ini
+.DS_Store
