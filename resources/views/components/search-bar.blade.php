@@ -1,7 +1,7 @@
 <?php
 
 use Livewire\Component;
-use App\Models\Product;
+use App\Support\ProductSearch;
 
 new class extends Component {
     public string $query = '';
@@ -12,19 +12,10 @@ new class extends Component {
 
     public function updatedQuery(): void
     {
-        if (mb_strlen(trim($this->query)) >= 2) {
-            $this->suggestions = Product::with('category')
-                ->where('name', 'like', '%' . $this->query . '%')
-                ->take(6)
-                ->get()
-                ->map(fn ($p) => [
-                    'name'     => $p->name,
-                    'slug'     => $p->slug,
-                    'price'    => $p->formatted_price,
-                    'image'    => $p->image_url,
-                    'category' => $p->category->name,
-                ])
-                ->toArray();
+        $trimmed = trim($this->query);
+
+        if (mb_strlen($trimmed) >= 2) {
+            $this->suggestions = ProductSearch::suggest($trimmed, 6);
             $this->open = count($this->suggestions) > 0;
         } else {
             $this->suggestions = [];

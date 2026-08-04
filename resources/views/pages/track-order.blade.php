@@ -59,6 +59,9 @@ new class extends Component {
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <h1 class="text-3xl font-bold text-ink">Lacak Pesanan</h1>
             <div class="gold-line mt-2 mb-0"></div>
+            <p class="mt-3 max-w-2xl text-sm !text-white leading-relaxed">
+                Cek status pesananmu dengan nomor pesanan dan 4 digit terakhir nomor telepon checkout.
+            </p>
         </div>
     </section>
 
@@ -85,7 +88,8 @@ new class extends Component {
                            class="w-full rounded-3xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-beige focus:ring-beige/20">
                 </div>
                 <button type="submit"
-                        class="inline-flex items-center justify-center rounded-full bg-beige px-6 py-3 text-sm font-semibold text-deep hover:bg-coral transition-all duration-200">
+                        class="inline-flex items-center justify-center rounded-full !bg-deep px-6 py-3 text-sm font-semibold !text-cream hover:!bg-deep-dark transition-all duration-200"
+                        style="background-color: var(--theme-deep); color: var(--theme-cream);">
                     Cari Pesanan
                 </button>
             </form>

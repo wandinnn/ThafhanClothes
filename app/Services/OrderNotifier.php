@@ -5,8 +5,10 @@ namespace App\Services;
 use App\Mail\OrderPlacedMail;
 use App\Mail\OrderShippedMail;
 use App\Mail\OrderStatusUpdatedMail;
+use App\Mail\PaymentProofReceivedMail;
 use App\Mail\PaymentProofUploadedMail;
 use App\Models\Order;
+use App\Support\ShopSettings;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Throwable;
@@ -20,6 +22,10 @@ class OrderNotifier
 {
     public function orderPlaced(Order $order): void
     {
+        if (! ShopSettings::mailEnabled()) {
+            return;
+        }
+
         $order->loadMissing('items');
 
         if (filled($order->customer_email)) {
@@ -45,7 +51,21 @@ class OrderNotifier
 
     public function paymentProofUploaded(Order $order): void
     {
+        if (! ShopSettings::mailEnabled()) {
+            return;
+        }
+
         $order->loadMissing('items');
+
+        if (ShopSettings::mailPaymentProofCustomerEnabled() && filled($order->customer_email)) {
+            $this->sendSafely(
+                $order->customer_email,
+                new PaymentProofReceivedMail($order),
+                'payment_proof_customer',
+                $order,
+            );
+        }
+
         $adminEmail = config('app.admin_email');
 
         if (! filled($adminEmail)) {
@@ -62,11 +82,21 @@ class OrderNotifier
 
     public function statusUpdated(Order $order, string $previousStatus): void
     {
+        if (! ShopSettings::mailEnabled() || ! ShopSettings::mailStatusEnabled()) {
+            return;
+        }
+
         if ($previousStatus === $order->status || blank($order->customer_email)) {
             return;
         }
 
         $order->loadMissing('items');
+
+        if ($order->status === 'shipped' && $order->hasShipmentInfo()) {
+            $this->shipmentUpdated($order);
+
+            return;
+        }
 
         $this->sendSafely(
             $order->customer_email,
@@ -81,6 +111,10 @@ class OrderNotifier
      */
     public function shipmentUpdated(Order $order): void
     {
+        if (! ShopSettings::mailEnabled() || ! ShopSettings::mailShipmentEnabled()) {
+            return;
+        }
+
         if (! $order->hasShipmentInfo() || blank($order->customer_email)) {
             return;
         }

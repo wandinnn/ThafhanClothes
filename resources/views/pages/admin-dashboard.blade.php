@@ -2,6 +2,7 @@
 
 use App\Models\Category;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use Livewire\Component;
@@ -23,7 +24,13 @@ new class extends Component {
 
     public int $lowStock = 0;
 
+    public int $revenueToday = 0;
+
+    public int $revenueWeek = 0;
+
     public int $revenueMonth = 0;
+
+    public int $ordersToday = 0;
 
     public array $productsPerCategory = [];
 
@@ -31,6 +38,9 @@ new class extends Component {
 
     /** @var array<int, array{name: string, label: string, stock: int}> */
     public array $lowStockItems = [];
+
+    /** @var array<int, array{name: string, qty: int, revenue: int}> */
+    public array $topProducts = [];
 
     private const LOW_STOCK_THRESHOLD = 5;
 
@@ -45,9 +55,33 @@ new class extends Component {
         $this->processingOrders = Order::whereIn('status', ['confirmed', 'processing', 'shipped'])->count();
         $this->lowStockItems = $this->collectLowStock();
         $this->lowStock = count($this->lowStockItems);
-        $this->revenueMonth = (int) Order::where('status', '!=', 'cancelled')
+
+        $paidStatuses = ['payment_uploaded', 'confirmed', 'processing', 'shipped', 'delivered'];
+
+        $this->revenueToday = (int) Order::whereIn('status', $paidStatuses)
+            ->whereDate('created_at', today())
+            ->sum('total');
+        $this->revenueWeek = (int) Order::whereIn('status', $paidStatuses)
+            ->where('created_at', '>=', now()->startOfWeek())
+            ->sum('total');
+        $this->revenueMonth = (int) Order::whereIn('status', $paidStatuses)
             ->where('created_at', '>=', now()->startOfMonth())
             ->sum('total');
+        $this->ordersToday = Order::whereDate('created_at', today())->count();
+
+        $this->topProducts = OrderItem::query()
+            ->selectRaw('product_name, SUM(quantity) as qty, SUM(subtotal) as revenue')
+            ->whereHas('order', fn ($q) => $q->whereIn('status', $paidStatuses))
+            ->groupBy('product_name')
+            ->orderByDesc('qty')
+            ->limit(5)
+            ->get()
+            ->map(fn ($row): array => [
+                'name' => (string) $row->product_name,
+                'qty' => (int) $row->qty,
+                'revenue' => (int) $row->revenue,
+            ])
+            ->all();
 
         $this->productsPerCategory = Category::withCount('products')
             ->get()
@@ -116,9 +150,25 @@ new class extends Component {
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <p class="text-sm font-medium text-ink">Omzet Hari Ini</p>
+            <p class="mt-1 text-2xl font-bold text-gray-900">Rp{{ number_format($revenueToday, 0, ',', '.') }}</p>
+            <p class="mt-1 text-xs text-ink">{{ $ordersToday }} pesanan dibuat hari ini</p>
+        </div>
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <p class="text-sm font-medium text-ink">Omzet Minggu Ini</p>
+            <p class="mt-1 text-2xl font-bold text-gray-900">Rp{{ number_format($revenueWeek, 0, ',', '.') }}</p>
+        </div>
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <p class="text-sm font-medium text-ink">Omzet Bulan Ini</p>
+            <p class="mt-1 text-2xl font-bold text-gray-900">Rp{{ number_format($revenueMonth, 0, ',', '.') }}</p>
+        </div>
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
             <p class="text-sm font-medium text-ink">Menunggu Pembayaran</p>
             <p class="mt-1 text-3xl font-bold text-gray-900">{{ $pendingPayment }}</p>
         </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
             <p class="text-sm font-medium text-ink">Bukti Dikirim</p>
             <p class="mt-1 text-3xl font-bold text-gray-900">{{ $paymentUploaded }}</p>
@@ -128,16 +178,16 @@ new class extends Component {
             <p class="mt-1 text-3xl font-bold text-gray-900">{{ $processingOrders }}</p>
         </div>
         <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <p class="text-sm font-medium text-ink">Omzet Bulan Ini</p>
-            <p class="mt-1 text-2xl font-bold text-gray-900">Rp{{ number_format($revenueMonth, 0, ',', '.') }}</p>
+            <p class="text-sm font-medium text-ink">Total Produk</p>
+            <p class="mt-1 text-3xl font-bold text-gray-900">{{ $totalProducts }}</p>
+        </div>
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <p class="text-sm font-medium text-ink">Stok Menipis (≤5)</p>
+            <p class="mt-1 text-3xl font-bold {{ $lowStock > 0 ? 'text-amber-600' : 'text-gray-900' }}">{{ $lowStock }}</p>
         </div>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <p class="text-sm font-medium text-ink">Total Produk</p>
-            <p class="mt-1 text-3xl font-bold text-gray-900">{{ $totalProducts }}</p>
-        </div>
         <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
             <p class="text-sm font-medium text-ink">Total Kategori</p>
             <p class="mt-1 text-3xl font-bold text-gray-900">{{ $totalCategories }}</p>
@@ -147,8 +197,12 @@ new class extends Component {
             <p class="mt-1 text-3xl font-bold text-gray-900">{{ $totalBestSellers }}</p>
         </div>
         <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <p class="text-sm font-medium text-ink">Stok Menipis (≤5)</p>
-            <p class="mt-1 text-3xl font-bold {{ $lowStock > 0 ? 'text-amber-600' : 'text-gray-900' }}">{{ $lowStock }}</p>
+            <p class="text-sm font-medium text-ink">New Arrivals</p>
+            <p class="mt-1 text-3xl font-bold text-gray-900">{{ $totalNewArrivals }}</p>
+        </div>
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <p class="text-sm font-medium text-ink">Pengaturan Toko</p>
+            <a wire:navigate href="{{ route('admin.settings') }}" class="mt-2 inline-block text-sm font-semibold text-deep hover:underline">Kelola bank & WA →</a>
         </div>
     </div>
 
@@ -178,6 +232,27 @@ new class extends Component {
             </div>
         </div>
 
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Produk Terlaris</h2>
+            @if ($topProducts === [])
+                <p class="text-sm text-ink">Belum ada data penjualan.</p>
+            @else
+                <div class="space-y-3">
+                    @foreach ($topProducts as $item)
+                        <div class="flex items-center justify-between gap-3 border-b border-gray-50 pb-3 last:border-0 last:pb-0">
+                            <div>
+                                <p class="font-semibold text-gray-900">{{ $item['name'] }}</p>
+                                <p class="text-xs text-ink">{{ $item['qty'] }} terjual</p>
+                            </div>
+                            <p class="font-semibold text-gray-900">Rp{{ number_format($item['revenue'], 0, ',', '.') }}</p>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-lg font-semibold text-gray-900">Stok Menipis</h2>

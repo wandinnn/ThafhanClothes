@@ -1,8 +1,11 @@
 <?php
 
+use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\PaymentWebhookController;
 use App\Http\Middleware\AdminMiddleware;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\Wishlist;
 use App\Support\Cart;
 use App\Support\ProductOptions;
 use Illuminate\Http\Request;
@@ -16,11 +19,16 @@ Route::livewire('/cart', 'pages::cart')->name('cart');
 Route::livewire('/checkout', 'pages::checkout')->name('checkout');
 Route::livewire('/payment/{order}', 'pages::payment')->name('payment');
 Route::livewire('/order/success/{order}', 'pages::order-success')->name('order.success');
+Route::get('/order/{order}/invoice', InvoiceController::class)->name('order.invoice');
 Route::livewire('/order/{order}', 'pages::order-detail')->name('order.detail');
 Route::livewire('/about', 'pages::about')->name('about');
-Route::livewire('/cara-belanja', 'pages::how-to-shop')->name('how-to-shop');
+Route::livewire('/faq', 'pages::faq')->name('faq');
+Route::redirect('/cara-belanja', '/faq');
 Route::livewire('/lacak-pesanan', 'pages::track-order')->name('track.order');
 Route::livewire('/wishlist', 'pages::wishlist')->name('wishlist');
+
+Route::post('/webhooks/midtrans', [PaymentWebhookController::class, 'midtrans'])
+    ->name('webhooks.midtrans');
 
 // Opsi ukuran/warna untuk modal add-to-cart (harus sama dengan halaman detail).
 Route::get('/products/{product}/options', function (Product $product) {
@@ -52,8 +60,28 @@ Route::post('/cart/add/{product}', function (Request $request, Product $product)
     return response()->json($result, $result['success'] ? 200 : 422);
 })->name('cart.add');
 
+// AJAX toggle wishlist (route key = slug)
+Route::post('/wishlist/toggle/{product}', function (Product $product) {
+    $added = Wishlist::toggleForSession($product->id);
+
+    return response()->json([
+        'success' => true,
+        'added' => $added,
+        'count' => Wishlist::countForSession(),
+        'message' => $added ? 'Disimpan ke wishlist.' : 'Dihapus dari wishlist.',
+    ]);
+})->name('wishlist.toggle');
+
 // Admin routes
 Route::prefix('admin')->name('admin.')->group(function () {
+    Route::get('/', function () {
+        if (auth()->check() && auth()->user()->is_admin) {
+            return redirect()->route('admin.dashboard');
+        }
+
+        return redirect()->route('admin.login');
+    })->name('home');
+
     Route::livewire('/login', 'pages::admin-login')->name('login')->middleware('guest');
 
     Route::middleware([AdminMiddleware::class])->group(function () {
@@ -62,6 +90,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::livewire('/categories', 'pages::admin-categories')->name('categories');
         Route::livewire('/coupons', 'pages::admin-coupons')->name('coupons');
         Route::livewire('/orders', 'pages::admin-orders')->name('orders');
+        Route::livewire('/settings', 'pages::admin-settings')->name('settings');
 
         // Bukti bayar hanya bisa dibuka oleh admin, bukan lewat URL publik tebakable.
         Route::get('/payment-proofs/{order}', function (Order $order) {

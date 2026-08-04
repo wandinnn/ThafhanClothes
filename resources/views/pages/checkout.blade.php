@@ -1,5 +1,7 @@
 <?php
 
+use App\Contracts\ShippingRateProvider;
+use App\Data\ShippingQuote;
 use App\Exceptions\InsufficientStockException;
 use App\Models\Coupon;
 use App\Models\Order;
@@ -22,45 +24,21 @@ new class extends Component {
     public string $notes = '';
     public string $couponCode = '';
     public string $appliedCouponCode = '';
-
-    /**
-     * Tarif ongkir per kota. Disimpan sebagai konstanta, bukan public property,
-     * agar tarif tidak bisa diubah lewat state Livewire yang dikirim browser.
-     */
-    private const CITY_RATES = [
-        'Bandung' => 0, 'Cimahi' => 5000, 'Cianjur' => 10000, 'Garut' => 10000,
-        'Tasikmalaya' => 15000, 'Sukabumi' => 15000, 'Ciamis' => 15000,
-        'Subang' => 15000, 'Purwakarta' => 15000, 'Indramayu' => 18000,
-        'Karawang' => 18000, 'Cirebon' => 20000,
-        'Bogor' => 20000, 'Depok' => 22000, 'Bekasi' => 22000,
-        'Jakarta' => 25000, 'Tangerang' => 25000, 'Tangerang Selatan' => 25000,
-        'Serang' => 28000, 'Cilegon' => 28000, 'Pandeglang' => 28000,
-        'Purwokerto' => 28000, 'Cilacap' => 28000, 'Pekalongan' => 30000,
-        'Tegal' => 30000, 'Semarang' => 35000, 'Salatiga' => 35000,
-        'Magelang' => 35000, 'Kudus' => 37000, 'Solo' => 38000,
-        'Yogyakarta' => 38000, 'Sleman' => 38000, 'Bantul' => 38000,
-        'Madiun' => 45000, 'Kediri' => 47000, 'Blitar' => 47000,
-        'Malang' => 50000, 'Surabaya' => 50000, 'Sidoarjo' => 50000,
-        'Jember' => 55000, 'Banyuwangi' => 58000,
-        'Bali (Denpasar)' => 58000, 'Mataram (Lombok)' => 65000, 'Kupang' => 85000,
-        'Bandar Lampung' => 50000, 'Palembang' => 55000, 'Jambi' => 60000,
-        'Padang' => 62000, 'Pekanbaru' => 65000, 'Batam' => 65000,
-        'Medan' => 70000, 'Banda Aceh' => 80000,
-        'Pontianak' => 68000, 'Banjarmasin' => 72000, 'Balikpapan' => 75000,
-        'Samarinda' => 75000, 'Makassar' => 75000, 'Manado' => 82000,
-        'Ambon' => 88000, 'Jayapura' => 98000,
-    ];
+    public string $shippingServiceCode = '';
 
     /**
      * @return array<string, array<int, mixed>>
      */
     protected function rules(): array
     {
+        $cities = array_keys($this->shipping()->cities());
+
         return [
             'name' => ['required', 'min:3', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['required', 'min:9', 'max:20'],
-            'city' => ['required', Rule::in(array_keys(self::CITY_RATES))],
+            'city' => ['required', Rule::in($cities)],
+            'shippingServiceCode' => ['required', 'string'],
             'address' => ['required', 'min:10', 'max:500'],
             'notes' => ['nullable', 'max:1000'],
         ];
@@ -74,16 +52,70 @@ new class extends Component {
         'phone.required' => 'Nomor telepon wajib diisi.',
         'phone.min' => 'Nomor telepon tidak valid.',
         'city.in' => 'Kota tujuan tidak tersedia.',
+        'shippingServiceCode.required' => 'Pilih layanan pengiriman.',
         'address.required' => 'Alamat lengkap wajib diisi.',
         'address.min' => 'Alamat minimal 10 karakter.',
     ];
+
+    public function mount(): void
+    {
+        $this->ensureShippingServiceSelected();
+    }
+
+    public function updatedCity(): void
+    {
+        $this->shippingServiceCode = '';
+        $this->ensureShippingServiceSelected();
+    }
+
+    private function shipping(): ShippingRateProvider
+    {
+        return app(ShippingRateProvider::class);
+    }
+
+    private function ensureShippingServiceSelected(): void
+    {
+        $quotes = $this->shippingQuotes;
+
+        if ($quotes === []) {
+            $this->shippingServiceCode = '';
+
+            return;
+        }
+
+        $codes = array_map(fn (ShippingQuote $quote): string => $quote->code, $quotes);
+
+        if (! in_array($this->shippingServiceCode, $codes, true)) {
+            $this->shippingServiceCode = $quotes[0]->code;
+        }
+    }
 
     /**
      * @return array<string, int>
      */
     public function getCityRatesProperty(): array
     {
-        return self::CITY_RATES;
+        return $this->shipping()->cities();
+    }
+
+    /**
+     * @return list<ShippingQuote>
+     */
+    public function getShippingQuotesProperty(): array
+    {
+        return $this->shipping()->quotesFor(
+            $this->city,
+            (int) config('shop.shipping.default_weight_grams', 500),
+        );
+    }
+
+    public function getSelectedShippingQuoteProperty(): ?ShippingQuote
+    {
+        return $this->shipping()->quoteByCode(
+            $this->city,
+            $this->shippingServiceCode,
+            (int) config('shop.shipping.default_weight_grams', 500),
+        );
     }
 
     /**
@@ -104,7 +136,7 @@ new class extends Component {
 
     public function getShippingCostProperty(): int
     {
-        return self::CITY_RATES[$this->city] ?? 0;
+        return $this->selectedShippingQuote?->cost ?? 0;
     }
 
     public function getAppliedCouponProperty(): ?Coupon
@@ -221,7 +253,16 @@ new class extends Component {
         }
 
         [$discount, $couponCode] = $this->claimCoupon($subtotal);
-        $shippingCost = self::CITY_RATES[$this->city] ?? 0;
+        $quote = $this->selectedShippingQuote;
+
+        if (! $quote) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'shippingServiceCode' => 'Layanan pengiriman tidak tersedia untuk kota ini.',
+            ]);
+        }
+
+        $shippingCost = $quote->cost;
+        $expiresHours = max(1, (int) config('shop.payment.expires_after_hours', 24));
 
         $order = Order::create([
             'order_number' => $this->generateOrderNumber(),
@@ -234,9 +275,13 @@ new class extends Component {
             'subtotal' => $subtotal,
             'discount' => $discount,
             'shipping_cost' => $shippingCost,
+            'shipping_service' => $quote->courier.' '.$quote->service,
+            'shipping_etd' => $quote->etd,
             'total' => max(0, $subtotal + $shippingCost - $discount),
             'coupon_code' => $couponCode,
             'status' => 'pending_payment',
+            'payment_gateway' => config('shop.payment_driver', 'manual'),
+            'payment_expires_at' => now()->addHours($expiresHours),
         ]);
 
         $order->items()->createMany($orderLines);
@@ -353,6 +398,9 @@ new class extends Component {
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <h1 class="text-3xl font-bold text-ink">Checkout</h1>
             <div class="gold-line mt-2"></div>
+            <p class="mt-3 max-w-2xl text-sm !text-white leading-relaxed">
+                Isi data pengiriman, pilih ongkir, dan selesaikan pesanan dengan aman.
+            </p>
         </div>
     </section>
 
@@ -395,13 +443,14 @@ new class extends Component {
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1.5">Kota Tujuan</label>
                                 <select wire:model.live="city"
-                                        class="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-beige focus:ring-2 focus:ring-beige/20">
+                                        class="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-beige focus:ring-2 focus:ring-beige/20 @error('city') border-red-300 bg-red-50 @enderror">
                                     @foreach($this->cityRates as $cityName => $rate)
                                         <option value="{{ $cityName }}">
-                                            {{ $cityName }} — {{ $rate === 0 ? 'Gratis' : 'Rp'.number_format($rate,0,',','.') }}
+                                            {{ $cityName }} — {{ $rate === 0 ? 'Gratis' : 'dari Rp'.number_format($rate,0,',','.') }}
                                         </option>
                                     @endforeach
                                 </select>
+                                @error('city') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1.5">Alamat Lengkap</label>
@@ -410,6 +459,29 @@ new class extends Component {
                                 @error('address') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                             </div>
                         </div>
+
+                        @if(count($this->shippingQuotes) > 0)
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1.5">Layanan Pengiriman</label>
+                                <div class="space-y-2">
+                                    @foreach($this->shippingQuotes as $quote)
+                                        <label class="flex items-start gap-3 rounded-2xl border px-4 py-3 cursor-pointer transition-colors
+                                                      {{ $shippingServiceCode === $quote->code ? 'border-deep bg-beige/40' : 'border-gray-200 bg-gray-50 hover:border-beige' }}">
+                                            <input type="radio" wire:model.live="shippingServiceCode" value="{{ $quote->code }}"
+                                                   class="mt-1 size-4 text-deep focus:ring-beige/20">
+                                            <span class="text-sm text-gray-800">
+                                                <span class="font-semibold">{{ $quote->courier }} {{ $quote->service }}</span>
+                                                <span class="block text-xs text-ink mt-0.5">
+                                                    {{ $quote->cost === 0 ? 'Gratis ongkir' : 'Rp'.number_format($quote->cost,0,',','.') }}
+                                                    · estimasi {{ $quote->etd }}
+                                                </span>
+                                            </span>
+                                        </label>
+                                    @endforeach
+                                </div>
+                                @error('shippingServiceCode') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                        @endif
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1.5">Catatan Pesanan <span class="text-ink">(opsional)</span></label>
@@ -454,7 +526,11 @@ new class extends Component {
                         @else
                             <div class="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3">
                                 <p class="text-sm text-blue-700">
-                                    Ongkir ke <strong>{{ $city }}</strong>: <strong>Rp{{ number_format($this->shippingCost,0,',','.') }}</strong>
+                                    Ongkir ke <strong>{{ $city }}</strong>
+                                    @if($this->selectedShippingQuote)
+                                        via <strong>{{ $this->selectedShippingQuote->courier }} {{ $this->selectedShippingQuote->service }}</strong>
+                                    @endif:
+                                    <strong>Rp{{ number_format($this->shippingCost,0,',','.') }}</strong>
                                 </p>
                             </div>
                         @endif
@@ -462,7 +538,7 @@ new class extends Component {
                         <button type="submit"
                                 wire:loading.attr="disabled"
                                 wire:target="createOrder"
-                                class="w-full inline-flex items-center justify-center gap-2 rounded-full bg-beige px-6 py-3.5 text-sm font-bold !text-black hover:bg-coral transition-all shadow-md hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed">
+                                class="w-full inline-flex items-center justify-center gap-2 rounded-full bg-cream hover:bg-coral-dark px-6 py-3.5 text-sm font-bold !text-deep hover:!text-deep transition-all shadow-md hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed">
                             <span wire:loading.remove wire:target="createOrder">Lanjut ke Pembayaran →</span>
                             <span wire:loading wire:target="createOrder">Memproses pesanan...</span>
                         </button>

@@ -51,7 +51,7 @@ test('every storefront page renders', function (string $route) {
     'sukses' => '/order/success/SMOKE00001',
     'detail pesanan' => '/order/SMOKE00001',
     'tentang' => '/about',
-    'cara belanja' => '/cara-belanja',
+    'faq' => '/faq',
     'lacak pesanan' => '/lacak-pesanan',
 ]);
 
@@ -86,6 +86,16 @@ test('every admin page renders for an administrator', function (string $route) {
 
 test('the admin area is closed to guests', function () {
     $this->get('/admin/orders')->assertRedirect(route('admin.login'));
+});
+
+test('visiting /admin redirects guests to the login page', function () {
+    $this->get('/admin')->assertRedirect(route('admin.login'));
+});
+
+test('visiting /admin redirects administrators to the dashboard', function () {
+    $this->actingAs(User::factory()->admin()->create())
+        ->get('/admin')
+        ->assertRedirect(route('admin.dashboard'));
 });
 
 test('the admin area is closed to a non admin user', function () {

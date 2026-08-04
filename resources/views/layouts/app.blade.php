@@ -34,9 +34,9 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
                     <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/>
                 </svg>
-                <span>Indonesia</span>
+                <span>Kota Bandung, Jawa Barat</span>
             </div>
-            <span class="font-semibold tracking-wide">Belanja Nyaman Kualitas Aman</span>
+            <span class="font-semibold tracking-wide">Harga Minimum Kualitas Premium</span>
             <a href="https://wa.me/6281324825060" target="_blank" rel="noopener noreferrer"
                class="flex items-center gap-1 font-semibold text-coral hover:text-beige transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5" fill="currentColor" viewBox="0 0 24 24">
@@ -75,9 +75,9 @@
                            class="nav-link text-sm font-semibold uppercase tracking-wide text-coral/80 hover:text-coral {{ request()->routeIs('about') ? 'active text-coral' : '' }}">
                             Tentang Kami
                         </a>
-                        <a wire:navigate.hover href="{{ route('how-to-shop') }}"
-                           class="nav-link text-sm font-semibold uppercase tracking-wide text-coral/80 hover:text-coral {{ request()->routeIs('how-to-shop') ? 'active text-coral' : '' }}">
-                            Cara Belanja
+                        <a wire:navigate.hover href="{{ route('faq') }}"
+                           class="nav-link text-sm font-semibold uppercase tracking-wide text-coral/80 hover:text-coral {{ request()->routeIs('faq') ? 'active text-coral' : '' }}">
+                            FAQ
                         </a>
                         <a wire:navigate.hover href="{{ route('track.order') }}"
                            class="nav-link text-sm font-semibold uppercase tracking-wide text-coral/80 hover:text-coral {{ request()->routeIs('track.order') ? 'active text-coral' : '' }}">
@@ -116,7 +116,7 @@
                         <a wire:navigate.hover href="{{ route('products') }}" class="text-sm font-semibold text-coral px-1 py-2 transition-colors border-b border-coral/20">Produk</a>
                         <a wire:navigate.hover href="{{ route('cart') }}" class="text-sm font-semibold text-coral px-1 py-2 transition-colors border-b border-coral/20">Keranjang</a>
                         <a wire:navigate.hover href="{{ route('about') }}" class="text-sm font-semibold text-coral px-1 py-2 transition-colors border-b border-coral/20">Tentang Kami</a>
-                        <a wire:navigate.hover href="{{ route('how-to-shop') }}" class="text-sm font-semibold text-coral px-1 py-2 transition-colors border-b border-coral/20">Cara Belanja</a>
+                        <a wire:navigate.hover href="{{ route('faq') }}" class="text-sm font-semibold text-coral px-1 py-2 transition-colors border-b border-coral/20">FAQ</a>
                         <a wire:navigate.hover href="{{ route('track.order') }}" class="text-sm font-semibold text-coral px-1 py-2 transition-colors">Lacak Pesanan</a>
                     </div>
                 </div>
@@ -156,7 +156,7 @@
                         <li><a wire:navigate.hover href="{{ route('home') }}" class="text-sm text-on-teal/85 hover:text-cream transition-colors">Beranda</a></li>
                         <li><a wire:navigate.hover href="{{ route('products') }}" class="text-sm text-on-teal/85 hover:text-cream transition-colors">Semua Produk</a></li>
                         <li><a wire:navigate.hover href="{{ route('about') }}" class="text-sm text-on-teal/85 hover:text-cream transition-colors">Tentang Kami</a></li>
-                        <li><a wire:navigate.hover href="{{ route('how-to-shop') }}" class="text-sm text-on-teal/85 hover:text-cream transition-colors">Cara Belanja</a></li>
+                        <li><a wire:navigate.hover href="{{ route('faq') }}" class="text-sm text-on-teal/85 hover:text-cream transition-colors">FAQ</a></li>
                         <li><a wire:navigate.hover href="{{ route('track.order') }}" class="text-sm text-on-teal/85 hover:text-cream transition-colors">Lacak Pesanan</a></li>
                     </ul>
                 </div>
@@ -280,13 +280,20 @@
             </div>
 
             {{-- Footer --}}
-            <div class="px-5 pb-5">
+            <div class="px-5 pb-5 space-y-2">
                 <button id="modal-add-btn" type="button" onclick="modalAddToCart()"
                         class="w-full bg-cream hover:bg-coral text-on-cream hover:text-on-coral font-bold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 text-sm hover:-translate-y-0.5 active:scale-[0.98]">
                     <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/>
                     </svg>
                     <span id="modal-add-label">Tambah ke Cart</span>
+                </button>
+                <button id="modal-wishlist-btn" type="button" onclick="modalToggleWishlist()"
+                        class="w-full bg-teal hover:bg-teal-dark !text-cream font-bold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 text-sm border-2 border-cream/70 hover:border-cream">
+                    <svg id="modal-wishlist-icon" xmlns="http://www.w3.org/2000/svg" class="size-5 !text-cream" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z"/>
+                    </svg>
+                    <span id="modal-wishlist-label">Simpan ke Wishlist</span>
                 </button>
             </div>
         </div>
@@ -308,6 +315,7 @@
     {{-- Base URL untuk JS --}}
     <script>
         window.__cartAddBase = '{{ url("/cart/add") }}';
+        window.__wishlistToggleBase = '{{ url("/wishlist/toggle") }}';
         window.__productOptionsBase = '{{ url("/products") }}';
         window.__csrfToken   = '{{ csrf_token() }}';
     </script>
@@ -353,7 +361,8 @@
         }
 
         function modalClearSize(button) {
-            button.classList.remove('bg-beige', 'text-deep', 'border-beige', 'font-bold');
+            button.classList.remove('bg-deep', '!text-beige', 'border-deep', 'font-bold', 'bg-beige', 'text-deep', 'border-beige');
+            button.classList.add('border-beige/50', 'text-deep');
             button.dataset.selected = '';
         }
 
@@ -409,8 +418,102 @@
                 formatted_price: el.dataset.productFormattedPrice || '',
                 category:        el.dataset.productCategory || '',
                 image:           el.dataset.productImage || '',
+                inWishlist:      el.dataset.inWishlist === '1',
             };
             openAddToCart(product);
+        }
+
+        function setModalWishlistState(inWishlist) {
+            const icon  = document.getElementById('modal-wishlist-icon');
+            const label = document.getElementById('modal-wishlist-label');
+            if (!icon || !label) return;
+            icon.setAttribute('fill', inWishlist ? 'currentColor' : 'none');
+            label.textContent = inWishlist ? 'Tersimpan di Wishlist' : 'Simpan ke Wishlist';
+            if (window.currentModalProduct) {
+                window.currentModalProduct.inWishlist = !!inWishlist;
+            }
+        }
+
+        function applyWishlistButtonState(btn, inWishlist) {
+            if (!btn) return;
+            btn.dataset.inWishlist = inWishlist ? '1' : '0';
+            btn.title = inWishlist ? 'Hapus dari wishlist' : 'Simpan ke wishlist';
+            btn.setAttribute('aria-label', btn.title);
+            btn.classList.toggle('bg-teal', inWishlist);
+            btn.classList.toggle('border-teal', true);
+            btn.classList.toggle('!text-on-teal', inWishlist);
+            btn.classList.toggle('bg-panel', !inWishlist);
+            btn.classList.toggle('text-teal', !inWishlist);
+            const svg = btn.querySelector('svg');
+            if (svg) svg.setAttribute('fill', inWishlist ? 'currentColor' : 'none');
+        }
+
+        async function toggleWishlistBySlug(slug, options = {}) {
+            if (!slug || !window.__wishlistToggleBase) return null;
+
+            const res = await fetch(window.__wishlistToggleBase + '/' + encodeURIComponent(slug), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': window.__csrfToken,
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({}),
+            });
+
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.message || 'Gagal mengubah wishlist.');
+            }
+
+            if (window.Livewire) {
+                try { window.Livewire.dispatch('wishlist-updated', { count: data.count }); } catch (_) {}
+            }
+
+            document.querySelectorAll('[data-product-slug="' + slug + '"]').forEach((el) => {
+                if (el.classList.contains('wishlist-btn')) {
+                    applyWishlistButtonState(el, !!data.added);
+                } else if (el.dataset.inWishlist !== undefined) {
+                    el.dataset.inWishlist = data.added ? '1' : '0';
+                }
+            });
+
+            if (window.currentModalProduct?.slug === slug) {
+                setModalWishlistState(!!data.added);
+            }
+
+            if (options.toast !== false) {
+                showToast(data.message || (data.added ? 'Disimpan ke wishlist.' : 'Dihapus dari wishlist.'), 'success');
+            }
+
+            return data;
+        }
+
+        async function toggleWishlistFromData(el) {
+            try {
+                el.disabled = true;
+                await toggleWishlistBySlug(el.dataset.productSlug);
+            } catch (err) {
+                console.error('Wishlist error:', err);
+                showToast(err.message || 'Gagal mengubah wishlist.', 'error');
+            } finally {
+                el.disabled = false;
+            }
+        }
+
+        async function modalToggleWishlist() {
+            const product = window.currentModalProduct;
+            if (!product?.slug) return;
+            const btn = document.getElementById('modal-wishlist-btn');
+            try {
+                if (btn) btn.disabled = true;
+                await toggleWishlistBySlug(product.slug);
+            } catch (err) {
+                console.error('Wishlist error:', err);
+                showToast(err.message || 'Gagal mengubah wishlist.', 'error');
+            } finally {
+                if (btn) btn.disabled = false;
+            }
         }
 
         function renderModalOptions(sizes, colorMap) {
@@ -424,12 +527,12 @@
                     b.dataset.value = s;
                     b.onclick = function () {
                         Array.from(sizesWrap.querySelectorAll('.size-pill')).forEach(ch => {
-                            ch.classList.remove('bg-beige','text-deep','border-beige','font-bold');
-                            ch.classList.add('border-deep/15','text-deep/80');
+                            ch.classList.remove('bg-deep','!text-beige','border-deep','font-bold','bg-beige','text-deep','border-beige');
+                            ch.classList.add('border-beige/50','text-deep');
                             ch.dataset.selected = '';
                         });
-                        b.classList.remove('border-deep/15','text-deep/80');
-                        b.classList.add('bg-beige','text-deep','border-beige','font-bold');
+                        b.classList.remove('border-beige/50','text-deep');
+                        b.classList.add('bg-deep','!text-beige','border-deep','font-bold');
                         b.dataset.selected = '1';
                         refreshModalAvailability();
                     };
@@ -452,7 +555,7 @@
                             ch.style.outlineOffset = '0';
                             ch.dataset.selected   = '';
                         });
-                        b.style.outline       = '3px solid var(--theme-cream)';
+                        b.style.outline       = '3px solid var(--theme-deep)';
                         b.style.outlineOffset = '2px';
                         b.dataset.selected    = '1';
                         refreshModalAvailability();
@@ -473,6 +576,7 @@
                 document.getElementById('modal-product-price').textContent = product.formatted_price;
                 document.getElementById('modal-quantity').value            = 1;
                 document.getElementById('modal-qty-display').textContent   = 1;
+                setModalWishlistState(!!product.inWishlist);
 
                 let sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
                 let colorMap = [

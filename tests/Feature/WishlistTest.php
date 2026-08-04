@@ -30,15 +30,19 @@ test('the wishlist page lists saved products', function () {
         ->assertSee('Jaket Bomber Hitam');
 });
 
-test('removing a wishlist item updates the badge count', function () {
+test('wishlist can be toggled via ajax endpoint', function () {
     $product = Product::factory()->create();
 
-    Livewire::test('pages::product-detail', ['product' => $product])
-        ->call('toggleWishlist');
+    $this->postJson(route('wishlist.toggle', $product))
+        ->assertSuccessful()
+        ->assertJsonStructure(['success', 'added', 'count', 'message'])
+        ->assertJson([
+            'success' => true,
+            'added' => true,
+            'count' => 1,
+        ]);
 
-    Livewire::test('pages::wishlist')
-        ->call('remove', $product->id)
-        ->assertDontSee($product->name);
-
-    expect(Wishlist::countForSession())->toBe(0);
+    $this->assertDatabaseHas('wishlists', [
+        'product_id' => $product->id,
+    ]);
 });

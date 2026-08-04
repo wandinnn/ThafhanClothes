@@ -124,13 +124,34 @@ new class extends Component {
                 </div>
             </div>
 
-            <div class="flex flex-col sm:flex-row gap-3">
+            <div class="rounded-2xl bg-deep p-5 text-center mb-6">
+                <p class="text-xs font-bold uppercase tracking-wider !text-cream">Kindly Reminder</p>
+                <h2 class="mt-1 text-lg font-bold !text-cream">Invoice Wajib Didownload !</h2>
+                <p class="mt-3 text-sm leading-relaxed !text-cream">
+                    Simpan invoice sebagai bukti transaksi resmi pesananmu.
+                </p>
+                <p class="mt-2 text-sm leading-relaxed !text-cream">
+                    Setelah didownload, kirim file invoice ke admin via WhatsApp bersama bukti pembayaran agar pesanan segera diproses.
+                </p>
+                <a href="{{ route('order.invoice', $order->order_number) }}" target="_blank" rel="noopener noreferrer"
+                   class="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-cream px-5 py-3 text-sm font-bold !text-deep transition-colors hover:bg-coral-dark">
+                    Download Invoice Disini
+                </a>
+            </div>
+
+            <div class="flex flex-col gap-3 sm:flex-row">
                 <a wire:navigate href="{{ route('order.detail', $order->order_number) }}"
-                   class="flex-1 bg-deep hover:bg-deep-dark text-coral font-bold py-3 rounded-2xl transition-colors text-sm flex items-center justify-center">
+                   class="flex flex-1 items-center justify-center rounded-2xl bg-deep py-3 text-sm font-bold text-coral transition-colors hover:bg-deep-dark">
                     Lihat Detail Pesanan
                 </a>
+                <a href="https://wa.me/6281324825060?text={{ urlencode('Halo ThafhanClothes, saya sudah bayar untuk pesanan '.strtoupper($order->order_number).'. Saya kirim invoice dan bukti pembayaran di chat ini.') }}"
+                   target="_blank" rel="noopener noreferrer"
+                   class="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-green-500 py-3 text-sm font-bold !text-white transition-colors hover:bg-green-600">
+                    Kirim Invoice via WA
+                </a>
                 <a wire:navigate href="{{ route('home') }}"
-                   class="flex-1 border-2 border-beige text-deep hover:bg-beige/10 font-bold py-3 rounded-2xl transition-colors text-sm flex items-center justify-center">
+                   class="flex flex-1 items-center justify-center rounded-2xl !bg-teal py-3 text-sm font-bold !text-cream transition-colors hover:!bg-teal-dark"
+                   style="background-color: var(--theme-teal); color: var(--theme-cream);">
                     Kembali ke Beranda
                 </a>
             </div>

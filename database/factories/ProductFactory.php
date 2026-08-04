@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\ProductCondition;
 use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -28,10 +29,21 @@ class ProductFactory extends Factory
             'original_price' => null,
             'image_url' => 'https://example.test/'.Str::slug($name).'.jpg',
             'stock' => 25,
+            'condition' => fake()->randomElement(ProductCondition::cases()),
             'is_best_seller' => false,
             'is_new_arrival' => false,
             'is_flash_sale' => false,
         ];
+    }
+
+    public function brandNew(): static
+    {
+        return $this->state(['condition' => ProductCondition::New]);
+    }
+
+    public function secondLikeNew(): static
+    {
+        return $this->state(['condition' => ProductCondition::SecondLikeNew]);
     }
 
     public function outOfStock(): static

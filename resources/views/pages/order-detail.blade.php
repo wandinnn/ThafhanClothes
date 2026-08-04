@@ -82,6 +82,9 @@ new class extends Component {
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <h1 class="text-3xl font-bold text-ink">Detail Pesanan</h1>
             <div class="gold-line mt-2 mb-0"></div>
+            <p class="mt-3 max-w-2xl text-sm !text-white leading-relaxed">
+                Lihat status, ringkasan, dan nomor resi pesananmu di satu tempat.
+            </p>
         </div>
     </section>
 
@@ -219,7 +222,9 @@ new class extends Component {
                             </div>
                         </div>
                     </div>
-                    <a wire:navigate href="{{ route('home') }}" class="inline-flex w-full items-center justify-center rounded-full bg-beige px-6 py-3 text-sm font-semibold text-deep hover:bg-coral transition-colors">
+                    <a wire:navigate href="{{ route('home') }}"
+                       class="inline-flex w-full items-center justify-center rounded-full !bg-deep px-6 py-3 text-sm font-semibold !text-cream hover:!bg-deep-dark transition-colors"
+                       style="background-color: var(--theme-deep); color: var(--theme-cream);">
                         Kembali ke Beranda
                     </a>
                 </div>

@@ -10,19 +10,26 @@ class Order extends Model
     protected $fillable = [
         'order_number', 'customer_name', 'customer_email', 'customer_phone',
         'city', 'address', 'notes', 'subtotal', 'discount', 'shipping_cost',
+        'shipping_service', 'shipping_etd',
         'total', 'coupon_code', 'status', 'payment_method',
-        'payment_proof_path', 'paid_at',
+        'payment_gateway', 'payment_transaction_id', 'payment_payload',
+        'payment_proof_path', 'paid_at', 'payment_expires_at',
         'shipping_courier', 'tracking_number', 'shipped_at',
     ];
 
-    protected $casts = [
-        'paid_at' => 'datetime',
-        'shipped_at' => 'datetime',
-        'subtotal' => 'integer',
-        'discount' => 'integer',
-        'shipping_cost' => 'integer',
-        'total' => 'integer',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'paid_at' => 'datetime',
+            'payment_expires_at' => 'datetime',
+            'shipped_at' => 'datetime',
+            'payment_payload' => 'array',
+            'subtotal' => 'integer',
+            'discount' => 'integer',
+            'shipping_cost' => 'integer',
+            'total' => 'integer',
+        ];
+    }
 
     public const STATUSES = [
         'pending_payment' => 'Menunggu Pembayaran',
@@ -50,9 +57,33 @@ class Order extends Model
         return filled($this->tracking_number) && filled($this->shipping_courier);
     }
 
+    public function isPaymentExpired(): bool
+    {
+        return $this->status === 'pending_payment'
+            && $this->payment_expires_at !== null
+            && $this->payment_expires_at->isPast();
+    }
+
     public function getStatusLabelAttribute(): string
     {
         return self::STATUSES[$this->status] ?? $this->status;
+    }
+
+    /**
+     * Teks panduan singkat untuk email notifikasi status ke pembeli.
+     */
+    public function customerStatusGuidance(): string
+    {
+        return match ($this->status) {
+            'pending_payment' => 'Segera selesaikan pembayaran sebelum batas waktu habis, lalu unggah bukti bayar.',
+            'payment_uploaded' => 'Bukti pembayaran sudah kami terima. Mohon tunggu konfirmasi dari admin.',
+            'confirmed' => 'Pembayaran sudah dikonfirmasi. Pesananmu segera kami proses.',
+            'processing' => 'Pesanan sedang disiapkan. Kami akan kabari lagi saat barang dikirim.',
+            'shipped' => 'Pesanan sudah dalam pengiriman. Cek nomor resi di detail pesanan atau email pengiriman.',
+            'delivered' => 'Pesanan ditandai sudah diterima. Terima kasih sudah belanja di ThafhanClothes!',
+            'cancelled' => 'Pesanan dibatalkan. Jika ada pertanyaan, hubungi kami via WhatsApp.',
+            default => 'Cek detail pesanan untuk informasi terbaru.',
+        };
     }
 
     public function getStatusColorAttribute(): string

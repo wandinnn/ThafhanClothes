@@ -93,11 +93,19 @@ new class extends Component {
         ]);
 
         if ($isNewShipment) {
-            app(OrderNotifier::class)->shipmentUpdated($order->fresh(['items']));
+            $fresh = $order->fresh(['items']);
+            $autoShipStatuses = ['payment_uploaded', 'confirmed', 'processing'];
+
+            if (in_array($fresh->status, $autoShipStatuses, true)) {
+                $fresh->update(['status' => 'shipped']);
+                $fresh = $fresh->fresh(['items']);
+            }
+
+            app(OrderNotifier::class)->shipmentUpdated($fresh);
         }
 
         session()->flash('statusUpdated', $tracking
-            ? 'Nomor resi tersimpan dan pembeli sudah dikabari.'
+            ? 'Nomor resi tersimpan dan pembeli sudah dikabari lewat email.'
             : 'Info pengiriman dikosongkan.');
     }
 
@@ -135,7 +143,7 @@ new class extends Component {
 
         app(OrderNotifier::class)->statusUpdated($order->fresh(['items']), $previousStatus);
 
-        session()->flash('statusUpdated', 'Status pesanan diperbarui.');
+        session()->flash('statusUpdated', 'Status pesanan diperbarui. Pembeli dikabari lewat email (jika ada alamat email).');
     }
 
     /**
@@ -269,7 +277,15 @@ new class extends Component {
 
                 <div class="grid sm:grid-cols-2 gap-4 mb-4 text-sm">
                     <div><p class="text-ink text-xs">Nama</p><p class="font-semibold">{{ $viewingOrder->customer_name }}</p></div>
-                    <div><p class="text-ink text-xs">Telepon</p><p class="font-semibold">{{ $viewingOrder->customer_phone }}</p></div>
+                    <div>
+                        <p class="text-ink text-xs">Telepon</p>
+                        <p class="font-semibold">{{ $viewingOrder->customer_phone }}</p>
+                        <a href="https://wa.me/{{ \App\Support\ShopSettings::whatsappDigitsFromPhone($viewingOrder->customer_phone) }}?text={{ urlencode('Halo '.$viewingOrder->customer_name.', terkait pesanan '.$viewingOrder->order_number.' di ThafhanClothes.') }}"
+                           target="_blank" rel="noopener noreferrer"
+                           class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-green-500 hover:bg-green-600 !text-white px-3 py-1.5 text-xs font-semibold transition-colors">
+                            Chat WA Pembeli
+                        </a>
+                    </div>
                     <div><p class="text-ink text-xs">Kota</p><p class="font-semibold">{{ $viewingOrder->city }}</p></div>
                     <div><p class="text-ink text-xs">Alamat</p><p class="font-semibold">{{ $viewingOrder->address }}</p></div>
                 </div>

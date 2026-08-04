@@ -1,7 +1,9 @@
 <?php
 
 use App\Mail\OrderPlacedMail;
+use App\Mail\OrderShippedMail;
 use App\Mail\OrderStatusUpdatedMail;
+use App\Mail\PaymentProofReceivedMail;
 use App\Mail\PaymentProofUploadedMail;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -9,6 +11,7 @@ use App\Models\Product;
 use App\Models\User;
 use App\Support\Cart;
 use App\Support\OrderAccess;
+use App\Support\ShopSettings;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -84,7 +87,7 @@ test('checkout sends order confirmation emails to the customer and admin', funct
     });
 });
 
-test('uploading a payment proof emails the admin', function () {
+test('uploading a payment proof emails the admin and customer', function () {
     Storage::fake('public');
     $order = makeNotifiableOrder();
     OrderAccess::grant($order->order_number);
@@ -96,6 +99,10 @@ test('uploading a payment proof emails the admin', function () {
     Mail::assertSent(PaymentProofUploadedMail::class, function (PaymentProofUploadedMail $mail) use ($order) {
         return $mail->hasTo('admin@thafhanclothes.test')
             && $mail->order->is($order);
+    });
+
+    Mail::assertSent(PaymentProofReceivedMail::class, function (PaymentProofReceivedMail $mail) {
+        return $mail->hasTo('pembeli@example.com');
     });
 });
 
@@ -113,6 +120,38 @@ test('updating an order status emails the customer', function () {
     });
 });
 
+test('moving to shipped with tracking uses the shipment email', function () {
+    $this->actingAs(User::factory()->admin()->create());
+    $order = makeNotifiableOrder('processing');
+    $order->update([
+        'shipping_courier' => 'JNE',
+        'tracking_number' => 'JP1234567890',
+    ]);
+
+    Livewire::test('pages::admin-orders')
+        ->call('updateStatus', $order->id, 'shipped');
+
+    Mail::assertSent(OrderShippedMail::class, function (OrderShippedMail $mail) {
+        return $mail->hasTo('pembeli@example.com');
+    });
+    Mail::assertNotSent(OrderStatusUpdatedMail::class);
+});
+
+test('confirming payment emails the customer with guidance', function () {
+    $this->actingAs(User::factory()->admin()->create());
+    $order = makeNotifiableOrder('payment_uploaded');
+
+    Livewire::test('pages::admin-orders')
+        ->call('updateStatus', $order->id, 'confirmed');
+
+    Mail::assertSent(OrderStatusUpdatedMail::class, function (OrderStatusUpdatedMail $mail) {
+        return $mail->hasTo('pembeli@example.com')
+            && $mail->order->status === 'confirmed'
+            && $mail->previousStatus === 'payment_uploaded'
+            && str_contains($mail->order->customerStatusGuidance(), 'dikonfirmasi');
+    });
+});
+
 test('status update emails are skipped when the customer has no email', function () {
     $this->actingAs(User::factory()->admin()->create());
     $order = makeNotifiableOrder('processing');
@@ -120,6 +159,19 @@ test('status update emails are skipped when the customer has no email', function
 
     Livewire::test('pages::admin-orders')
         ->call('updateStatus', $order->id, 'shipped');
+
+    Mail::assertNothingSent();
+});
+
+test('status emails can be disabled via shop settings', function () {
+    ShopSettings::putMany([
+        ShopSettings::KEY_MAIL_ENABLED => '0',
+    ]);
+    $this->actingAs(User::factory()->admin()->create());
+    $order = makeNotifiableOrder('processing');
+
+    Livewire::test('pages::admin-orders')
+        ->call('updateStatus', $order->id, 'confirmed');
 
     Mail::assertNothingSent();
 });

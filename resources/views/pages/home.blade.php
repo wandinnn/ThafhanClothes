@@ -3,6 +3,7 @@
 use Livewire\Component;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Wishlist;
 use Carbon\Carbon;
 
 new class extends Component {
@@ -18,12 +19,13 @@ new class extends Component {
             'newArrivals' => Product::with('category')->where('is_new_arrival', true)->take(4)->get(),
             'flashSaleEndsAt' => $endsAt->timestamp * 1000,
             'flashSaleActive' => $endsAt->isFuture(),
+            'wishlistIds' => Wishlist::where('session_id', session()->getId())->pluck('product_id')->all(),
         ]);
     }
 
     private function flashSaleEndsAt(): Carbon
     {
-        $configured = config('shop.flash_sale_ends_at');
+        $configured = \App\Support\ShopSettings::flashSaleEndsAt();
         $timezone = config('shop.timezone', 'Asia/Jakarta');
 
         if (filled($configured)) {
@@ -56,7 +58,7 @@ new class extends Component {
                 <div class="animate-fade-up stagger-1">
                     <p class="text-on-teal/90 text-xs font-semibold uppercase tracking-[0.2em] mb-3">Welcome To ThafhanClothes</p>
                     <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-on-teal leading-tight">
-                        Kualitas Premium<br>Harga Minimum
+                        Harga Minimum<br>Kualitas Premium
                     </h1>
                     <div class="gold-line mt-4"></div>
                     <p class="mt-4 text-on-teal/85 max-w-md leading-relaxed">
@@ -146,10 +148,11 @@ new class extends Component {
                          data-reveal style="--reveal-delay: {{ min($index, 5) * 80 }}ms">
                         <div class="card-img-wrap relative aspect-[4/3]">
                             <img src="{{ $product->image_url }}" alt="{{ $product->name }}" class="w-full h-full object-cover">
-                            <span class="sale-badge absolute top-3 left-3 bg-cream text-on-cream text-xs font-bold px-2.5 py-1">SALE</span>
+                            <span class="sale-badge absolute top-3 right-3 bg-cream text-on-cream text-xs font-bold px-2.5 py-1">SALE</span>
                             @if($product->discount_percent)
-                                <span class="sale-badge absolute top-3 right-3 bg-coral text-on-coral text-xs font-bold px-2 py-1">-{{ $product->discount_percent }}%</span>
+                                <span class="sale-badge absolute top-12 right-3 bg-coral text-on-coral text-xs font-bold px-2 py-1">-{{ $product->discount_percent }}%</span>
                             @endif
+                            <x-product-condition-badge :condition="$product->condition" class="absolute top-3 left-3" />
                         </div>
                         <div class="p-4">
                             <p class="text-xs text-ink uppercase tracking-wide">{{ $product->category->name }}</p>
@@ -162,7 +165,7 @@ new class extends Component {
                             </div>
                             <div class="card-actions mt-3 grid grid-cols-2 gap-2">
                                 <a wire:navigate href="{{ route('product.detail', $product->slug) }}"
-                                   class="text-center text-xs font-semibold border border-deep text-deep hover:bg-deep hover:text-beige py-2 transition-colors">
+                                   class="text-center text-xs font-semibold bg-deep !text-beige border border-deep hover:bg-deep-dark py-2 transition-colors">
                                     Detail
                                 </a>
                                 <button type="button"
@@ -174,6 +177,7 @@ new class extends Component {
                                         data-product-formatted-price="{{ $product->formatted_price }}"
                                         data-product-category="{{ $product->category->slug }}"
                                         data-product-image="{{ $product->image_url }}"
+                                        data-in-wishlist="{{ in_array($product->id, $wishlistIds, true) ? '1' : '0' }}"
                                         class="text-center text-xs font-semibold bg-cream hover:bg-coral text-on-cream hover:text-on-coral py-2 transition-colors flex items-center justify-center gap-1.5">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272"/>
@@ -292,7 +296,7 @@ new class extends Component {
                 {{-- Content --}}
                 <div class="relative z-10">
                     <p class="text-sm font-semibold uppercase tracking-[0.25em] text-cream mb-2">Fashion Premium</p>
-                    <h2 class="text-3xl sm:text-4xl font-bold text-on-teal">Belanja Nyaman Kualitas Aman</h2>
+                    <h2 class="text-3xl sm:text-4xl font-bold text-on-teal">Harga Minimun Kualitas Premium</h2>
                     <p class="mt-3 text-on-teal/85 max-w-lg mx-auto leading-relaxed">
                         Temukan gaya terbaikmu dengan koleksi fashion premium. Dari kasual hingga formal, semua ada di sini.
                     </p>
@@ -338,7 +342,7 @@ new class extends Component {
                     <div class="gold-line mb-0"></div>
                 </div>
                 <a wire:navigate href="{{ route('products') }}"
-                   class="text-sm font-medium text-deep hover:text-coral transition-colors border border-deep px-4 py-1.5 hover:bg-deep hover:text-beige">
+                   class="text-sm font-medium bg-deep !text-beige border border-deep px-4 py-1.5 hover:bg-deep-dark hover:border-deep-dark transition-colors">
                     Lihat Semua
                 </a>
             </div>
@@ -350,10 +354,9 @@ new class extends Component {
                         <div class="card-img-wrap relative aspect-[4/5]">
                             <img src="{{ $product->image_url }}" alt="{{ $product->name }}" loading="lazy" class="w-full h-full object-cover">
                             @if($product->discount_percent)
-                                <span class="sale-badge absolute top-3 left-3 bg-cream text-on-cream text-xs font-bold px-2.5 py-1">SALE</span>
                                 <span class="sale-badge absolute top-3 right-3 bg-coral text-on-coral text-xs font-bold px-2 py-1">-{{ $product->discount_percent }}%</span>
                             @endif
-                            <span class="new-badge absolute bottom-3 left-3 bg-teal text-on-teal text-[10px] font-bold px-2.5 py-1">New</span>
+                            <x-product-condition-badge :condition="$product->condition" class="absolute top-3 left-3" />
                         </div>
                         <div class="p-4">
                             <p class="text-xs text-ink uppercase tracking-wide">{{ $product->category->name }}</p>
@@ -366,7 +369,7 @@ new class extends Component {
                             </div>
                             <div class="card-actions mt-3 grid grid-cols-2 gap-2">
                                 <a wire:navigate href="{{ route('product.detail', $product->slug) }}"
-                                   class="text-center text-xs font-semibold border border-deep text-deep hover:bg-deep hover:text-beige py-2 transition-colors">
+                                   class="text-center text-xs font-semibold bg-deep !text-beige border border-deep hover:bg-deep-dark py-2 transition-colors">
                                     Detail
                                 </a>
                                 <button type="button"
@@ -378,6 +381,7 @@ new class extends Component {
                                         data-product-formatted-price="{{ $product->formatted_price }}"
                                         data-product-category="{{ $product->category->slug }}"
                                         data-product-image="{{ $product->image_url }}"
+                                        data-in-wishlist="{{ in_array($product->id, $wishlistIds, true) ? '1' : '0' }}"
                                         class="text-xs font-semibold bg-cream hover:bg-coral text-on-cream hover:text-on-coral py-2 transition-colors flex items-center justify-center">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272"/>

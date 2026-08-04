@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ProductCondition;
 use App\Models\Category;
 use App\Models\Product;
 use App\Support\ProductOptions;
@@ -45,6 +46,8 @@ new class extends Component {
 
     public string $category_id = '';
 
+    public string $condition = 'second_like_new';
+
     public bool $is_best_seller = false;
 
     public bool $is_new_arrival = false;
@@ -63,13 +66,14 @@ new class extends Component {
             'name' => ['required', 'min:3', 'max:255'],
             'image_url' => [$this->imageFile ? 'nullable' : 'required', 'url'],
             'imageFile' => ['nullable', 'image', 'max:2048'],
-            'galleryFiles' => ['array', 'max:4'],
+            'galleryFiles' => ['array', 'max:'.(Product::MAX_GALLERY_IMAGES - 1)],
             'galleryFiles.*' => ['image', 'max:2048'],
             'price' => ['required', 'integer', 'min:0'],
             'original_price' => ['nullable', 'integer', 'gt:price'],
             'stock' => ['required', 'integer', 'min:0'],
             'description' => ['required', 'min:10'],
             'category_id' => ['required', 'exists:categories,id'],
+            'condition' => ['required', 'in:'.implode(',', array_column(ProductCondition::cases(), 'value'))],
             'is_best_seller' => ['boolean'],
             'is_new_arrival' => ['boolean'],
             'is_flash_sale' => ['boolean'],
@@ -96,9 +100,11 @@ new class extends Component {
         'description.min' => 'Deskripsi minimal 10 karakter.',
         'category_id.required' => 'Kategori wajib dipilih.',
         'category_id.exists' => 'Kategori tidak ditemukan.',
+        'condition.required' => 'Kondisi barang wajib dipilih.',
+        'condition.in' => 'Kondisi barang tidak valid.',
         'imageFile.image' => 'Berkas harus berupa gambar.',
         'imageFile.max' => 'Ukuran gambar maksimal 2 MB.',
-        'galleryFiles.max' => 'Maksimal 4 foto tambahan (total 5 termasuk gambar utama).',
+        'galleryFiles.max' => 'Maksimal 5 gambar per produk (1 utama + 4 tambahan).',
         'galleryFiles.*.image' => 'Setiap foto gallery harus berupa gambar.',
         'galleryFiles.*.max' => 'Setiap foto gallery maksimal 2 MB.',
         'variantRows.*.size.required' => 'Ukuran varian wajib diisi.',
@@ -106,6 +112,41 @@ new class extends Component {
         'variantRows.*.stock.required' => 'Stok varian wajib diisi.',
         'variantRows.*.stock.min' => 'Stok varian tidak boleh negatif.',
     ];
+
+    /**
+     * Jumlah foto tambahan yang masih boleh diunggah (total produk maks 5 termasuk utama).
+     */
+    public function getRemainingGallerySlotsProperty(): int
+    {
+        $kept = count($this->existingGallery);
+        $incoming = count(array_filter($this->galleryFiles));
+
+        return max(0, Product::MAX_GALLERY_IMAGES - 1 - $kept - $incoming);
+    }
+
+    /**
+     * Total slot gambar terpakai (utama + gallery), untuk indikator 0–5 di form.
+     */
+    public function getUsedImageSlotsProperty(): int
+    {
+        $hasCover = filled($this->image_url) || $this->imageFile !== null;
+        $gallery = count($this->existingGallery) + count(array_filter($this->galleryFiles));
+
+        return ($hasCover ? 1 : 0) + $gallery;
+    }
+
+    public function updatedGalleryFiles(): void
+    {
+        $maxExtra = Product::MAX_GALLERY_IMAGES - 1;
+        $allowed = max(0, $maxExtra - count($this->existingGallery));
+
+        if (count($this->galleryFiles) <= $allowed) {
+            return;
+        }
+
+        $this->galleryFiles = array_slice(array_values($this->galleryFiles), 0, $allowed);
+        $this->addError('galleryFiles', 'Maksimal 5 gambar per produk (1 utama + 4 tambahan).');
+    }
 
     /**
      * @return list<string>
@@ -214,6 +255,7 @@ new class extends Component {
         $this->stock = $product->stock;
         $this->description = $product->description;
         $this->category_id = (string) $product->category_id;
+        $this->condition = $product->condition?->value ?? ProductCondition::SecondLikeNew->value;
         $this->is_best_seller = $product->is_best_seller;
         $this->is_new_arrival = $product->is_new_arrival;
         $this->is_flash_sale = $product->is_flash_sale;
@@ -241,7 +283,7 @@ new class extends Component {
         $incomingGalleryCount = is_array($this->galleryFiles) ? count($this->galleryFiles) : 0;
 
         if ($keptGalleryCount + $incomingGalleryCount > Product::MAX_GALLERY_IMAGES - 1) {
-            $this->addError('galleryFiles', 'Maksimal 4 foto tambahan (total 5 termasuk gambar utama).');
+            $this->addError('galleryFiles', 'Maksimal 5 gambar per produk (1 utama + 4 tambahan).');
 
             return;
         }
@@ -255,6 +297,7 @@ new class extends Component {
             'stock' => $this->variantRows === [] ? $this->stock : $this->variantStockTotal,
             'description' => $this->description,
             'category_id' => $this->category_id,
+            'condition' => $this->condition,
             'is_best_seller' => $this->is_best_seller,
             'is_new_arrival' => $this->is_new_arrival,
             'is_flash_sale' => $this->is_flash_sale,
@@ -328,7 +371,7 @@ new class extends Component {
     }
 
     /**
-     * Simpan foto gallery tambahan (di luar gambar utama), maksimal 4 berkas.
+     * Simpan foto gallery tambahan (di luar gambar utama), sisa slot sampai total 5.
      */
     private function syncGallery(Product $product): void
     {
@@ -366,6 +409,31 @@ new class extends Component {
         }
 
         return $slug;
+    }
+
+    public function duplicate(string $slug): void
+    {
+        $product = Product::with(['variants', 'images'])->where('slug', $slug)->firstOrFail();
+
+        $clone = $product->replicate();
+        $clone->name = $product->name.' (Salinan)';
+        $clone->slug = $this->uniqueSlug($clone->name);
+        $clone->is_flash_sale = false;
+        $clone->save();
+
+        foreach ($product->variants as $variant) {
+            $variantClone = $variant->replicate();
+            $variantClone->product_id = $clone->id;
+            $variantClone->save();
+        }
+
+        foreach ($product->images as $image) {
+            $imageClone = $image->replicate();
+            $imageClone->product_id = $clone->id;
+            $imageClone->save();
+        }
+
+        $this->dispatch('notify', message: 'Produk berhasil digandakan.', type: 'success');
     }
 
     public function confirmDelete(string $slug): void
@@ -412,6 +480,7 @@ new class extends Component {
         $this->stock = 0;
         $this->description = '';
         $this->category_id = '';
+        $this->condition = ProductCondition::SecondLikeNew->value;
         $this->is_best_seller = false;
         $this->is_new_arrival = false;
         $this->is_flash_sale = false;
@@ -449,7 +518,7 @@ new class extends Component {
         </div>
         @if(!$showForm)
             <button wire:click="create"
-                    class="inline-flex items-center gap-2 bg-accent hover:bg-secondary text-ink font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 text-sm">
+                    class="admin-btn px-5 py-2.5 text-sm">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                 </svg>
@@ -511,56 +580,70 @@ new class extends Component {
                             </div>
                         @endif
                     </div>
-                    <div>
-                        <label for="image_url" class="block text-sm font-medium text-gray-700 mb-1.5">Gambar Produk</label>
-                        <input wire:model="image_url" id="image_url" type="url"
-                               class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all duration-200 text-sm @error('image_url') border-red-300 bg-red-50 @enderror"
-                               placeholder="https://example.com/image.jpg">
-                        @error('image_url') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
-
-                        <div class="mt-2 flex items-center gap-3">
-                            <input wire:model="imageFile" id="imageFile" type="file" accept="image/*"
-                                   class="block w-full text-xs text-ink file:mr-3 file:rounded-lg file:border-0 file:bg-accent/15 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-gray-800 hover:file:bg-accent/25">
-                            <div wire:loading wire:target="imageFile" class="text-xs text-ink whitespace-nowrap">Mengunggah…</div>
-                        </div>
-                        <p class="mt-1 text-xs text-ink">Unggah berkas (maks 2 MB) untuk menimpa URL di atas.</p>
-                        @error('imageFile') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
-
-                        @if($imageFile)
-                            <img src="{{ $imageFile->temporaryUrl() }}" class="mt-2 size-16 rounded-lg object-cover border border-gray-200">
-                        @elseif($image_url)
-                            <img src="{{ $image_url }}" class="mt-2 size-16 rounded-lg object-cover border border-gray-200">
-                        @endif
-                    </div>
-
-                    <div class="lg:col-span-2">
-                        <label for="galleryFiles" class="block text-sm font-medium text-gray-700 mb-1.5">
-                            Gallery Foto <span class="text-ink font-normal">— opsional, maks 4 tambahan</span>
-                        </label>
-                        <input wire:model="galleryFiles" id="galleryFiles" type="file" accept="image/*" multiple
-                               class="block w-full text-xs text-ink file:mr-3 file:rounded-lg file:border-0 file:bg-accent/15 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-gray-800 hover:file:bg-accent/25">
-                        <div wire:loading wire:target="galleryFiles" class="mt-1 text-xs text-ink">Mengunggah gallery…</div>
-                        <p class="mt-1 text-xs text-ink">Total tampilan di toko: gambar utama + gallery (maks 5).</p>
-                        @error('galleryFiles') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
-                        @error('galleryFiles.*') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
-
-                        @if($existingGallery !== [] || $galleryFiles !== [])
-                            <div class="mt-3 flex flex-wrap gap-3">
-                                @foreach($existingGallery as $image)
-                                    <div class="relative">
-                                        <img src="{{ $image['url'] }}" alt="" class="size-16 rounded-lg object-cover border border-gray-200">
-                                        <button type="button" wire:click="removeExistingGalleryImage({{ $image['id'] }})"
-                                                class="absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white"
-                                                title="Hapus foto">×</button>
-                                    </div>
-                                @endforeach
-                                @foreach($galleryFiles as $file)
-                                    @if($file)
-                                        <img src="{{ $file->temporaryUrl() }}" alt="" class="size-16 rounded-lg object-cover border border-dashed border-accent">
-                                    @endif
-                                @endforeach
+                    <div class="lg:col-span-2 rounded-2xl border border-gray-100 bg-gray-50/60 p-4 space-y-4">
+                        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p class="text-sm font-semibold text-gray-900">Gambar Produk</p>
+                                <p class="mt-0.5 text-xs text-ink">Maksimal {{ \App\Models\Product::MAX_GALLERY_IMAGES }} gambar (1 utama + {{ \App\Models\Product::MAX_GALLERY_IMAGES - 1 }} tambahan).</p>
                             </div>
-                        @endif
+                            <p class="text-xs font-semibold text-deep">
+                                {{ $this->usedImageSlots }} / {{ \App\Models\Product::MAX_GALLERY_IMAGES }} terpakai
+                            </p>
+                        </div>
+
+                        <div>
+                            <label for="image_url" class="block text-sm font-medium text-gray-700 mb-1.5">Gambar utama</label>
+                            <input wire:model="image_url" id="image_url" type="url"
+                                   class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all duration-200 text-sm @error('image_url') border-red-300 bg-red-50 @enderror"
+                                   placeholder="https://example.com/image.jpg">
+                            @error('image_url') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+
+                            <div class="mt-2 flex items-center gap-3">
+                                <input wire:model="imageFile" id="imageFile" type="file" accept="image/*"
+                                       class="block w-full text-xs text-ink file:mr-3 file:rounded-lg file:border-0 file:bg-accent/15 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-gray-800 hover:file:bg-accent/25">
+                                <div wire:loading wire:target="imageFile" class="text-xs text-ink whitespace-nowrap">Mengunggah…</div>
+                            </div>
+                            <p class="mt-1 text-xs text-ink">Unggah berkas (maks 2 MB) untuk menimpa URL di atas.</p>
+                            @error('imageFile') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+
+                            @if($imageFile)
+                                <img src="{{ $imageFile->temporaryUrl() }}" alt="Preview gambar utama" class="mt-2 size-16 rounded-lg object-cover border border-gray-200">
+                            @elseif($image_url)
+                                <img src="{{ $image_url }}" alt="Gambar utama" class="mt-2 size-16 rounded-lg object-cover border border-gray-200">
+                            @endif
+                        </div>
+
+                        <div>
+                            <label for="galleryFiles" class="block text-sm font-medium text-gray-700 mb-1.5">
+                                Foto tambahan
+                                <span class="text-ink font-normal">— sisa {{ $this->remainingGallerySlots }} slot</span>
+                            </label>
+                            <input wire:model="galleryFiles" id="galleryFiles" type="file" accept="image/*" multiple
+                                   @disabled(count($existingGallery) >= \App\Models\Product::MAX_GALLERY_IMAGES - 1)
+                                   class="block w-full text-xs text-ink file:mr-3 file:rounded-lg file:border-0 file:bg-accent/15 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-gray-800 hover:file:bg-accent/25 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <div wire:loading wire:target="galleryFiles" class="mt-1 text-xs text-ink">Mengunggah gallery…</div>
+                            <p class="mt-1 text-xs text-ink">Pilih beberapa foto sekaligus. Total di toko tetap maksimal {{ \App\Models\Product::MAX_GALLERY_IMAGES }}.</p>
+                            @error('galleryFiles') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+                            @error('galleryFiles.*') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+
+                            @if($existingGallery !== [] || $galleryFiles !== [])
+                                <div class="mt-3 flex flex-wrap gap-3">
+                                    @foreach($existingGallery as $image)
+                                        <div class="relative">
+                                            <img src="{{ $image['url'] }}" alt="" class="size-16 rounded-lg object-cover border border-gray-200">
+                                            <button type="button" wire:click="removeExistingGalleryImage({{ $image['id'] }})"
+                                                    class="absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white"
+                                                    title="Hapus foto">×</button>
+                                        </div>
+                                    @endforeach
+                                    @foreach($galleryFiles as $file)
+                                        @if($file)
+                                            <img src="{{ $file->temporaryUrl() }}" alt="" class="size-16 rounded-lg object-cover border border-dashed border-accent">
+                                        @endif
+                                    @endforeach
+                                </div>
+                            @endif
+                        </div>
                     </div>
                 </div>
 
@@ -584,7 +667,7 @@ new class extends Component {
                                 Isi semua ukuran
                             </button>
                             <button type="button" wire:click="addVariantRow"
-                                    class="rounded-xl bg-accent px-3 py-2 text-sm font-semibold text-ink transition-colors hover:bg-secondary">
+                                    class="admin-btn px-3 py-2 text-sm">
                                 Tambah baris
                             </button>
                         </div>
@@ -642,6 +725,19 @@ new class extends Component {
                               placeholder="Deskripsi produk"></textarea>
                     @error('description') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
                 </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Kondisi Barang</label>
+                    <div class="flex flex-wrap gap-4">
+                        @foreach(ProductCondition::options() as $option)
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" wire:model="condition" value="{{ $option->value }}"
+                                       class="size-4 border-gray-300 text-accent focus:ring-accent/20">
+                                <span class="text-sm text-gray-700">{{ $option->label() }}</span>
+                            </label>
+                        @endforeach
+                    </div>
+                    @error('condition') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+                </div>
                 <div class="flex flex-wrap gap-6">
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" wire:model="is_best_seller"
@@ -661,7 +757,7 @@ new class extends Component {
                 </div>
                 <div class="flex items-center gap-3 pt-2">
                     <button type="submit"
-                            class="bg-accent hover:bg-secondary text-ink font-semibold px-6 py-2.5 rounded-xl transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 text-sm">
+                            class="admin-btn px-6 py-2.5 text-sm">
                         {{ $editingProduct ? 'Simpan Perubahan' : 'Tambah Produk' }}
                     </button>
                     <button type="button" wire:click="cancel"
@@ -723,12 +819,13 @@ new class extends Component {
                                 @endif
                             </td>
                             <td class="px-4 py-3 hidden lg:table-cell">
-                                <div class="flex gap-1.5">
+                                <div class="flex flex-wrap gap-1.5">
+                                    <x-product-condition-badge :condition="$product->condition" />
                                     @if($product->is_best_seller)
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700">Best</span>
                                     @endif
                                     @if($product->is_new_arrival)
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">Baru</span>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">Arrival</span>
                                     @endif
                                     @if($product->is_flash_sale)
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700">Flash</span>
@@ -738,13 +835,22 @@ new class extends Component {
                             <td class="px-4 py-3 text-right">
                                 <div class="flex items-center justify-end gap-1">
                                     <button wire:click="edit('{{ $product->slug }}')"
-                                            class="p-2 text-ink hover:text-accent hover:bg-accent/5 rounded-lg transition-all">
+                                            class="p-2 text-ink hover:text-accent hover:bg-accent/5 rounded-lg transition-all"
+                                            title="Edit">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
                                         </svg>
                                     </button>
+                                    <button wire:click="duplicate('{{ $product->slug }}')"
+                                            class="p-2 text-ink hover:text-deep hover:bg-beige rounded-lg transition-all"
+                                            title="Duplikat">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75m9 9.75h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-2.25-.25H8.625c-.621 0-1.125.504-1.125 1.125v3.5m9 9.75a1.875 1.875 0 0 0 1.875-1.875V12.75A1.875 1.875 0 0 0 16.5 10.875h-1.5a1.875 1.875 0 0 0-1.875 1.875v1.5c0 1.036.84 1.875 1.875 1.875h1.5Z" />
+                                        </svg>
+                                    </button>
                                     <button wire:click="confirmDelete('{{ $product->slug }}')"
-                                            class="p-2 text-ink hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
+                                            class="p-2 text-ink hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                            title="Hapus">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
                                         </svg>

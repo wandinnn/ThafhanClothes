@@ -280,6 +280,9 @@ new class extends Component {
     {
         $seoDescription = $this->product->seoDescription();
         $seoImage = $this->product->image_url;
+        if (filled($seoImage) && ! str_starts_with($seoImage, 'http://') && ! str_starts_with($seoImage, 'https://')) {
+            $seoImage = url($seoImage);
+        }
 
         return view('pages.product-detail', [
             'relatedProducts' => Product::with('category')
@@ -312,9 +315,26 @@ new class extends Component {
 
         <div class="grid lg:grid-cols-2 gap-8 lg:gap-14">
 
-            {{-- ======= KIRI: Gambar Produk ======= --}}
-            <div class="aspect-[4/5] rounded-2xl overflow-hidden bg-gray-100 shadow-md">
-                <img src="{{ $product->image_url }}" alt="{{ $product->name }}" class="w-full h-full object-cover">
+            {{-- ======= KIRI: Gallery Produk ======= --}}
+            @php($gallery = $galleryUrls !== [] ? $galleryUrls : [$product->image_url])
+            <div class="space-y-3" x-data="{ active: @js($gallery[0]) }">
+                <div class="aspect-[4/5] rounded-2xl overflow-hidden bg-gray-100 shadow-md relative">
+                    <img :src="active" alt="{{ $product->name }}" class="w-full h-full object-cover transition-opacity duration-200">
+                    <x-product-condition-badge :condition="$product->condition" class="absolute top-3 left-3 z-10" />
+                </div>
+
+                @if(count($gallery) > 1)
+                    <div class="grid grid-cols-5 gap-2">
+                        @foreach($gallery as $url)
+                            <button type="button"
+                                    @click="active = @js($url)"
+                                    :class="active === @js($url) ? 'ring-2 ring-deep border-deep' : 'border-gray-200 hover:border-beige'"
+                                    class="aspect-square rounded-xl overflow-hidden border-2 bg-gray-100 transition-all focus:outline-none">
+                                <img src="{{ $url }}" alt="" class="w-full h-full object-cover" loading="lazy">
+                            </button>
+                        @endforeach
+                    </div>
+                @endif
             </div>
 
             {{-- ======= KANAN: Info Produk ======= --}}
@@ -366,19 +386,18 @@ new class extends Component {
                 @endif
 
                 {{-- Badges --}}
-                @if($product->is_best_seller || $product->is_new_arrival || $product->is_flash_sale)
-                    <div class="flex flex-wrap gap-2">
-                        @if($product->is_best_seller)
-                            <span class="bg-amber-100 text-amber-800 text-xs font-semibold px-3 py-1 rounded-full">⭐ Best Seller</span>
-                        @endif
-                        @if($product->is_new_arrival)
-                            <span class="bg-blue-100 text-blue-800 text-xs font-semibold px-3 py-1 rounded-full">🆕 New Arrival</span>
-                        @endif
-                        @if($product->is_flash_sale)
-                            <span class="bg-beige/20 text-coral text-xs font-semibold px-3 py-1 rounded-full">⚡ Flash Sale</span>
-                        @endif
-                    </div>
-                @endif
+                <div class="flex flex-wrap gap-2">
+                    <x-product-condition-badge :condition="$product->condition" class="!text-xs px-3 py-1 rounded-full" />
+                    @if($product->is_best_seller)
+                        <span class="bg-amber-100 text-amber-800 text-xs font-semibold px-3 py-1 rounded-full">⭐ Best Seller</span>
+                    @endif
+                    @if($product->is_new_arrival)
+                        <span class="bg-blue-100 text-blue-800 text-xs font-semibold px-3 py-1 rounded-full">🆕 New Arrival</span>
+                    @endif
+                    @if($product->is_flash_sale)
+                        <span class="bg-beige/20 text-coral text-xs font-semibold px-3 py-1 rounded-full">⚡ Flash Sale</span>
+                    @endif
+                </div>
 
                 {{-- Harga --}}
                 <div class="flex items-end gap-3">
@@ -414,7 +433,7 @@ new class extends Component {
                                            {{ $usesVariants && $colorStock <= 0
                                               ? 'bg-gray-50 text-gray-400 border-gray-100 line-through cursor-not-allowed'
                                               : ($selectedColor === $color
-                                                 ? 'bg-deep text-beige border-deep shadow-md font-bold'
+                                                 ? 'bg-deep !text-beige border-deep shadow-md font-bold'
                                                  : 'bg-panel text-gray-700 border-gray-200 hover:border-beige hover:text-deep') }}">
                                 {{ $color }}
                             </button>
@@ -447,7 +466,7 @@ new class extends Component {
                                            {{ $usesVariants && $sizeStock <= 0
                                               ? 'bg-gray-50 text-gray-400 border-gray-100 line-through cursor-not-allowed'
                                               : ($selectedSize === $size
-                                                 ? 'bg-deep text-beige border-deep shadow-md scale-105 cursor-pointer'
+                                                 ? 'bg-deep !text-beige border-deep shadow-md scale-105 cursor-pointer'
                                                  : 'bg-panel text-gray-700 border-gray-200 hover:border-beige hover:text-deep hover:scale-105 cursor-pointer') }}">
                                 {{ $size }}
                             </button>
@@ -527,9 +546,9 @@ new class extends Component {
                     <button type="button" wire:click="toggleWishlist"
                             class="w-full font-semibold py-3.5 rounded-xl border-2 transition-all duration-200 flex items-center justify-center gap-2
                                    {{ $inWishlist
-                                      ? 'border-red-300 bg-red-50 text-red-600'
-                                      : 'border-gray-200 text-ink hover:border-beige hover:text-deep' }}">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="{{ $inWishlist ? 'currentColor' : 'none' }}" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                      ? 'border-teal-dark bg-teal !text-on-teal'
+                                      : 'border-teal bg-teal !text-on-teal hover:bg-teal-dark hover:border-teal-dark' }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="size-5 !text-on-teal" fill="{{ $inWishlist ? 'currentColor' : 'none' }}" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z"/>
                         </svg>
                         {{ $inWishlist ? 'Tersimpan di Wishlist' : 'Simpan ke Wishlist' }}
@@ -538,10 +557,7 @@ new class extends Component {
                     @php($waReady = $selectedSize !== '' && $selectedColor !== '')
                     <a href="https://wa.me/6281324825060?text={{ urlencode('Halo ThafhanClothes, saya ingin tanya tentang '.$product->name.($waReady ? ' (ukuran '.$selectedSize.', warna '.$selectedColor.')' : '')) }}"
                        target="_blank" rel="noopener noreferrer"
-                       class="flex items-center justify-center gap-2 w-full border-2 font-semibold py-3.5 rounded-xl transition-all duration-200 !text-white
-                              {{ $waReady
-                                 ? 'border-deep bg-deep hover:bg-deep-dark hover:border-deep-dark'
-                                 : 'border-green-500 bg-green-500 hover:bg-green-600 hover:border-green-600' }}">
+                       class="flex items-center justify-center gap-2 w-full border-2 border-green-500 bg-green-500 hover:bg-green-600 hover:border-green-600 font-semibold py-3.5 rounded-xl transition-all duration-200 !text-white">
                         <svg xmlns="http://www.w3.org/2000/svg" class="size-5 !text-white" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
                             <path d="M12 0C5.373 0 0 5.373 0 12c0 2.122.555 4.112 1.523 5.837L.057 23.882l6.197-1.624A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.89 0-3.663-.5-5.197-1.373l-.373-.22-3.678.964.98-3.584-.243-.392A9.956 9.956 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
@@ -669,7 +685,17 @@ new class extends Component {
                                         {{ strtoupper(mb_substr($review->reviewer_name, 0, 1)) }}
                                     </div>
                                     <div>
-                                        <p class="text-sm font-semibold text-gray-900">{{ $review->reviewer_name }}</p>
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <p class="text-sm font-semibold text-gray-900">{{ $review->reviewer_name }}</p>
+                                            @if($review->is_verified)
+                                                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-3" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+                                                    </svg>
+                                                    Pembeli terverifikasi
+                                                </span>
+                                            @endif
+                                        </div>
                                         <p class="text-xs text-ink">{{ $review->created_at->diffForHumans() }}</p>
                                     </div>
                                 </div>
@@ -707,8 +733,9 @@ new class extends Component {
                     @foreach($relatedProducts as $related)
                         <a wire:navigate href="{{ route('product.detail', $related->slug) }}"
                            class="product-card group bg-panel rounded-xl overflow-hidden shadow-sm">
-                            <div class="card-img-wrap aspect-[4/5]">
+                            <div class="card-img-wrap aspect-[4/5] relative">
                                 <img src="{{ $related->image_url }}" alt="{{ $related->name }}" loading="lazy" class="w-full h-full object-cover">
+                                <x-product-condition-badge :condition="$related->condition" class="absolute top-2 left-2" />
                             </div>
                             <div class="p-3">
                                 <h3 class="text-sm font-semibold text-gray-900 group-hover:text-deep transition-colors line-clamp-1">{{ $related->name }}</h3>

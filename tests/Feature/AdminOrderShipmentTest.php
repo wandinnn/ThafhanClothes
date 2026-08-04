@@ -57,7 +57,8 @@ test('saving a tracking number stores it and emails the buyer', function () {
 
     expect($order->shipping_courier)->toBe('JNE')
         ->and($order->tracking_number)->toBe('JP1234567890')
-        ->and($order->shipped_at)->not->toBeNull();
+        ->and($order->shipped_at)->not->toBeNull()
+        ->and($order->status)->toBe('shipped');
 
     Mail::assertSent(OrderShippedMail::class);
 });

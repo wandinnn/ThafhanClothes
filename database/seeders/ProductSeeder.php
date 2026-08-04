@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\ProductCondition;
 use App\Models\Category;
 use App\Models\Product;
 use App\Support\ProductOptions;
@@ -177,9 +178,22 @@ class ProductSeeder extends Seeder
             'sepatu-sneakers-putih',
         ];
 
+        // Dummy mix: sebagian New, sisanya Second Like New (fokus preloved).
+        $newConditionSlugs = [
+            'kemeja-putih-slim-fit',
+            't-shirt-premium-cotton',
+            'jaket-bomber-hitam',
+            'celana-jeans-straight',
+            'sepatu-sneakers-putih',
+            'jam-tangan-kasual',
+        ];
+
         foreach ($products as $product) {
             $product['stock'] ??= 25;
             $product['is_flash_sale'] = in_array($product['slug'], $flashSaleSlugs, true);
+            $product['condition'] = in_array($product['slug'], $newConditionSlugs, true)
+                ? ProductCondition::New
+                : ProductCondition::SecondLikeNew;
 
             if ($product['is_flash_sale']) {
                 $product['original_price'] = (int) round($product['price'] * 1.25);

@@ -141,7 +141,7 @@ new class extends Component {
         </div>
         @if(!$showForm)
             <button wire:click="create"
-                    class="inline-flex items-center gap-2 bg-accent hover:bg-secondary text-ink font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 text-sm">
+                    class="admin-btn px-5 py-2.5 text-sm">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                 </svg>
@@ -164,7 +164,7 @@ new class extends Component {
                 </div>
                 <div class="flex items-center gap-3 pt-2">
                     <button type="submit"
-                            class="bg-accent hover:bg-secondary text-ink font-semibold px-6 py-2.5 rounded-xl transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 text-sm">
+                            class="admin-btn px-6 py-2.5 text-sm">
                         {{ $editingCategory ? 'Simpan Perubahan' : 'Tambah Kategori' }}
                     </button>
                     <button type="button" wire:click="cancel"

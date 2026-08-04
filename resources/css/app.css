@@ -55,6 +55,10 @@
     color-scheme: light only;
 }
 
+[x-cloak] {
+    display: none !important;
+}
+
 /*
  * Safelist untuk kelas yang dipakai dinamis di JavaScript
  */
@@ -195,9 +199,40 @@
     color: var(--theme-teal);
 }
 
+/* Admin primary buttons: solid deep blue, gold text, hover keeps same colors + lift only */
+.admin-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background-color: var(--theme-deep) !important;
+    color: var(--theme-cream) !important;
+    font-weight: 600;
+    border: none;
+    border-radius: 0.75rem;
+    transition: transform 0.2s ease;
+}
+.admin-btn:hover,
+.admin-btn:focus-visible {
+    background-color: var(--theme-deep) !important;
+    color: var(--theme-cream) !important;
+    transform: translateY(-2px);
+}
+.admin-btn:active {
+    transform: translateY(0) scale(0.99);
+}
+.admin-btn svg {
+    color: inherit !important;
+}
+
 body {
     background: var(--theme-background);
     color: var(--theme-deep);
+}
+
+/* Condition badges (New / Second Like New) — gold text on dark/teal chips */
+.product-condition-badge {
+    color: var(--theme-cream) !important;
 }
 
 h1,

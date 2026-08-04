@@ -1,7 +1,10 @@
 <?php
 
+use App\Enums\ProductCondition;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Wishlist;
+use App\Support\ProductSearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Component;
@@ -12,6 +15,8 @@ new class extends Component
     use WithPagination;
 
     public ?string $selectedCategory = null;
+
+    public ?string $selectedCondition = null;
 
     public string $search = '';
 
@@ -33,6 +38,7 @@ new class extends Component
 
     protected $queryString = [
         'selectedCategory' => ['except' => null],
+        'selectedCondition' => ['except' => null],
         'search' => ['except' => ''],
         'sortBy' => ['except' => 'latest'],
     ];
@@ -40,6 +46,7 @@ new class extends Component
     public function mount(): void
     {
         $this->selectedCategory = request()->query('category', $this->selectedCategory);
+        $this->selectedCondition = $this->normalizeCondition(request()->query('condition', $this->selectedCondition));
         $this->search = request()->query('search', '');
     }
 
@@ -89,6 +96,18 @@ new class extends Component
         $this->resetPage();
     }
 
+    public function filterByCondition(?string $condition): void
+    {
+        $this->selectedCondition = $this->normalizeCondition($condition);
+        $this->resetPage();
+    }
+
+    public function updatedSelectedCondition(): void
+    {
+        $this->selectedCondition = $this->normalizeCondition($this->selectedCondition);
+        $this->resetPage();
+    }
+
     public function resetFilters(): void
     {
         $this->priceMin = 0;
@@ -96,6 +115,7 @@ new class extends Component
         $this->filterBestSeller = false;
         $this->filterNewArrival = false;
         $this->filterFlashSale = false;
+        $this->selectedCondition = null;
         $this->resetPage();
     }
 
@@ -111,7 +131,8 @@ new class extends Component
             || $this->priceMax > 0
             || $this->filterBestSeller
             || $this->filterNewArrival
-            || $this->filterFlashSale;
+            || $this->filterFlashSale
+            || filled($this->selectedCondition);
     }
 
     /**
@@ -126,11 +147,21 @@ new class extends Component
             ->when($this->selectedCategory, function ($q) {
                 $q->whereHas('category', fn ($c) => $c->where('slug', $this->selectedCategory));
             })
+            ->when($this->selectedCondition, fn ($q) => $q->where('condition', $this->selectedCondition))
             ->when($this->priceMin > 0, fn ($q) => $q->where('price', '>=', $this->priceMin))
             ->when($this->priceMax > 0, fn ($q) => $q->where('price', '<=', $this->priceMax))
             ->when($this->filterBestSeller, fn ($q) => $q->where('is_best_seller', true))
             ->when($this->filterNewArrival, fn ($q) => $q->where('is_new_arrival', true))
             ->when($this->filterFlashSale, fn ($q) => $q->where('is_flash_sale', true));
+    }
+
+    private function normalizeCondition(mixed $condition): ?string
+    {
+        if (! is_string($condition) || $condition === '') {
+            return null;
+        }
+
+        return ProductCondition::tryFrom($condition)?->value;
     }
 
     /**
@@ -176,6 +207,7 @@ new class extends Component
     {
         $perPage = 12;
         $page = max(1, (int) request()->query('page', 1));
+        $wishlistIds = Wishlist::where('session_id', session()->getId())->pluck('product_id')->all();
 
         if (trim($this->search) === '') {
             $query = $this->filteredQuery();
@@ -192,16 +224,17 @@ new class extends Component
             return view('pages.products', [
                 'categories' => Category::all(),
                 'products' => $query->paginate($perPage),
+                'wishlistIds' => $wishlistIds,
             ]);
         }
 
         $this->searchSuggestion = null;
-        $search = trim(mb_strtolower($this->search));
+        $search = trim($this->search);
 
         if (config('meilisearch.enabled')) {
             try {
                 $meili = app(\App\Services\MeiliSearchService::class);
-                $hits = $meili->search($search, ['limit' => 1000]);
+                $hits = $meili->search(ProductSearch::normalize($search), ['limit' => 1000]);
                 $ids = array_map(fn ($h) => $h['id'], $hits);
                 $products = $this->filteredQuery()->whereIn('id', $ids)->get()->keyBy('id');
                 $ordered = [];
@@ -212,70 +245,30 @@ new class extends Component
                     }
                 }
 
-                $top = $ordered[0] ?? null;
-                if ($top && mb_strtolower($top->name) !== $search) {
-                    $this->searchSuggestion = $top->name;
+                // Jika Meili kosong/kurang relevan, lengkapi dengan fuzzy lokal.
+                if ($ordered === []) {
+                    $ordered = ProductSearch::search($search, $this->filteredQuery(), 1000)->all();
                 }
+
+                $this->searchSuggestion = ProductSearch::topSuggestionName($search, $ordered);
 
                 return view('pages.products', [
                     'categories' => Category::all(),
                     'products' => $this->paginateResults($this->sortSearchResults($ordered), $perPage, $page),
+                    'wishlistIds' => $wishlistIds,
                 ]);
             } catch (\Throwable $e) {
                 // Fall back to local fuzzy scoring below.
             }
         }
 
-        $substr = mb_substr($search, 0, 2);
-        $candidates = $this->filteredQuery()
-            ->where(function ($q) use ($substr) {
-                $q->where('name', 'like', '%'.$substr.'%')
-                    ->orWhere('description', 'like', '%'.$substr.'%')
-                    ->orWhereHas('category', fn ($c) => $c->where('name', 'like', '%'.$substr.'%'));
-            })
-            ->limit(1000)
-            ->get();
-
-        $scored = [];
-        foreach ($candidates as $p) {
-            $name = mb_strtolower($p->name);
-            $desc = mb_strtolower($p->description ?? '');
-            $cat = mb_strtolower($p->category->name ?? '');
-
-            similar_text($search, $name, $namePct);
-            similar_text($search, $desc, $descPct);
-            similar_text($search, $cat, $catPct);
-
-            $lev = @levenshtein($search, $name);
-            $maxLen = max(mb_strlen($search), mb_strlen($name), 1);
-            $normLev = 1 - ($lev / $maxLen);
-            $normLevPct = max(0, min(100, $normLev * 100));
-
-            $score = ($namePct * 0.6) + ($normLevPct * 0.2) + ($descPct * 0.15) + ($catPct * 0.05);
-
-            if (mb_stripos($name, $search) !== false) {
-                $score += 20;
-            }
-
-            if ($name === $search) {
-                $score += 40;
-            }
-
-            $scored[] = ['product' => $p, 'score' => $score];
-        }
-
-        usort($scored, fn ($a, $b) => $b['score'] <=> $a['score']);
-
-        $top = $scored[0] ?? null;
-        if ($top && $top['score'] >= 45 && mb_strtolower($top['product']->name) !== $search) {
-            $this->searchSuggestion = $top['product']->name;
-        }
-
-        $ordered = array_map(fn ($r) => $r['product'], $scored);
+        $ordered = ProductSearch::search($search, $this->filteredQuery(), 1000)->all();
+        $this->searchSuggestion = ProductSearch::topSuggestionName($search, $ordered);
 
         return view('pages.products', [
             'categories' => Category::all(),
             'products' => $this->paginateResults($this->sortSearchResults($ordered), $perPage, $page),
+            'wishlistIds' => $wishlistIds,
         ]);
     }
 };
@@ -287,17 +280,20 @@ new class extends Component
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <h1 class="text-3xl font-bold text-ink">Semua Produk</h1>
             <div class="gold-line mt-2 mb-0"></div>
+            <p class="mt-3 max-w-2xl text-sm !text-white leading-relaxed">
+                Jelajahi koleksi fashion preloved pilihan — filter kategori, kondisi, dan temukan outfit yang pas.
+            </p>
         </div>
     </section>
 
     <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         {{-- Category pills --}}
-        <div class="flex flex-wrap gap-2 mb-5">
+        <div class="flex flex-wrap gap-2 mb-3">
             <button wire:click="filterByCategory(null)"
                     class="px-4 py-1.5 rounded-full text-sm font-medium transition-all
                            {{ is_null($selectedCategory)
-                              ? 'bg-beige text-deep shadow'
+                              ? 'bg-deep !text-beige shadow'
                               : 'bg-panel text-ink hover:bg-gray-100 shadow-sm border border-gray-200' }}">
                 Semua
             </button>
@@ -305,9 +301,29 @@ new class extends Component
                 <button wire:click="filterByCategory('{{ $cat->slug }}')"
                         class="px-4 py-1.5 rounded-full text-sm font-medium transition-all
                                {{ $selectedCategory === $cat->slug
-                                  ? 'bg-beige text-deep shadow'
+                                  ? 'bg-deep !text-beige shadow'
                                   : 'bg-panel text-ink hover:bg-gray-100 shadow-sm border border-gray-200' }}">
                     {{ $cat->name }}
+                </button>
+            @endforeach
+        </div>
+
+        {{-- Condition pills: New / Second Like New --}}
+        <div class="flex flex-wrap gap-2 mb-5">
+            <button wire:click="filterByCondition(null)"
+                    class="px-4 py-1.5 rounded-full text-sm font-medium transition-all
+                           {{ is_null($selectedCondition)
+                              ? 'bg-deep !text-beige shadow'
+                              : 'bg-panel text-ink hover:bg-gray-100 shadow-sm border border-gray-200' }}">
+                Semua Kondisi
+            </button>
+            @foreach(ProductCondition::options() as $condition)
+                <button wire:click="filterByCondition('{{ $condition->value }}')"
+                        class="px-4 py-1.5 rounded-full text-sm font-medium transition-all
+                               {{ $selectedCondition === $condition->value
+                                  ? 'bg-deep !text-beige shadow'
+                                  : 'bg-panel text-ink hover:bg-gray-100 shadow-sm border border-gray-200' }}">
+                    {{ $condition->label() }}
                 </button>
             @endforeach
         </div>
@@ -317,7 +333,7 @@ new class extends Component
             <div class="flex items-center gap-2">
                 <button wire:click="$toggle('showFilters')"
                         class="inline-flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all
-                               {{ $showFilters ? 'bg-deep text-coral border-coral' : 'bg-panel text-gray-700 border-gray-200 hover:bg-gray-50' }}">
+                               {{ $showFilters ? 'bg-deep !text-beige border-deep' : 'bg-panel text-gray-700 border-gray-200 hover:bg-gray-50' }}">
                     <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75"/>
                     </svg>
@@ -398,6 +414,27 @@ new class extends Component
                         @endif
                     </div>
 
+                    {{-- Kondisi New / Second Like New --}}
+                    <div>
+                        <p class="text-xs font-semibold text-ink uppercase tracking-wider mb-3">Kondisi Barang</p>
+                        <div class="space-y-2.5">
+                            <label class="flex items-center gap-2.5 cursor-pointer group">
+                                <input type="radio" wire:model.live="selectedCondition" value=""
+                                       class="w-4 h-4 border-gray-300 text-deep focus:ring-beige/20 cursor-pointer">
+                                <span class="text-sm text-gray-700 group-hover:text-deep transition-colors">Semua</span>
+                            </label>
+                            @foreach(ProductCondition::options() as $condition)
+                                <label class="flex items-center gap-2.5 cursor-pointer group">
+                                    <input type="radio" wire:model.live="selectedCondition" value="{{ $condition->value }}"
+                                           class="w-4 h-4 border-gray-300 text-deep focus:ring-beige/20 cursor-pointer">
+                                    <span class="text-sm text-gray-700 group-hover:text-deep transition-colors">
+                                        {{ $condition->label() }}
+                                    </span>
+                                </label>
+                            @endforeach
+                        </div>
+                    </div>
+
                     {{-- Label Filter --}}
                     <div>
                         <p class="text-xs font-semibold text-ink uppercase tracking-wider mb-3">Label Produk</p>
@@ -452,6 +489,12 @@ new class extends Component
                                         <button wire:click="$set('filterBestSeller', false)" class="hover:text-red-500">&times;</button>
                                     </span>
                                 @endif
+                                @if($selectedCondition)
+                                    <span class="inline-flex items-center gap-1 bg-teal/15 text-deep text-xs font-medium px-2.5 py-1 rounded-full border border-teal/30">
+                                        {{ ProductCondition::tryFrom($selectedCondition)?->label() ?? $selectedCondition }}
+                                        <button wire:click="filterByCondition(null)" class="hover:text-red-500">&times;</button>
+                                    </span>
+                                @endif
                                 @if($filterNewArrival)
                                     <span class="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-xs font-medium px-2.5 py-1 rounded-full border border-blue-200">
                                         New Arrival
@@ -484,16 +527,16 @@ new class extends Component
                              loading="lazy"
                              class="w-full h-full object-cover">
                         @if($product->discount_percent)
-                            <span class="absolute top-2 left-2 bg-beige text-deep text-xs font-bold px-2 py-0.5 rounded">SALE</span>
                             <span class="absolute top-2 right-2 bg-beige text-deep text-xs font-bold px-1.5 py-0.5 rounded">-{{ $product->discount_percent }}%</span>
                         @endif
+                        <x-product-condition-badge :condition="$product->condition" class="absolute top-2 left-2" />
                         {{-- Label badges --}}
                         <div class="absolute bottom-2 left-2 flex flex-col gap-1">
                             @if($product->is_best_seller)
                                 <span class="bg-yellow-400/90 text-yellow-900 text-[10px] font-bold px-2 py-0.5 rounded-full">⭐ Best</span>
                             @endif
                             @if($product->is_new_arrival)
-                                <span class="bg-blue-500/90 text-ink text-[10px] font-bold px-2 py-0.5 rounded-full">New</span>
+                                <span class="bg-blue-500/90 !text-white text-[10px] font-bold px-2 py-0.5 rounded-full">Arrival</span>
                             @endif
                         </div>
                     </a>
@@ -519,7 +562,7 @@ new class extends Component
 
                         <div class="mt-3 grid grid-cols-2 gap-1.5">
                             <a wire:navigate href="{{ route('product.detail', $product->slug) }}"
-                               class="text-center text-xs font-semibold border border-deep text-deep hover:bg-deep hover:text-beige py-2 rounded transition-colors">
+                               class="text-center text-xs font-semibold bg-deep !text-beige border border-deep hover:bg-deep-dark py-2 rounded transition-colors">
                                 Detail
                             </a>
                             <button type="button"
@@ -531,6 +574,7 @@ new class extends Component
                                     data-product-formatted-price="{{ $product->formatted_price }}"
                                     data-product-category="{{ $product->category->slug }}"
                                     data-product-image="{{ $product->image_url }}"
+                                    data-in-wishlist="{{ in_array($product->id, $wishlistIds, true) ? '1' : '0' }}"
                                     class="flex items-center justify-center bg-cream hover:bg-coral text-on-cream hover:text-on-coral py-2 rounded transition-colors">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272"/>

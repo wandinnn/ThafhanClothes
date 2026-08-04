@@ -27,6 +27,9 @@ new class extends Component {
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <h1 class="text-3xl font-bold text-ink">Wishlist</h1>
             <div class="gold-line mt-2 mb-0"></div>
+            <p class="mt-3 max-w-2xl text-sm !text-white leading-relaxed">
+                Simpan barang favorit di sini biar gampang dicek lagi kapan saja.
+            </p>
         </div>
     </section>
 
@@ -46,8 +49,9 @@ new class extends Component {
                     @php $product = $item->product; @endphp
                     @continue(! $product)
                     <div class="bg-panel rounded-xl overflow-hidden shadow-sm border border-gray-100" wire:key="wish-{{ $item->id }}">
-                        <a wire:navigate href="{{ route('product.detail', $product->slug) }}" class="block aspect-[4/3] overflow-hidden bg-gray-100">
+                        <a wire:navigate href="{{ route('product.detail', $product->slug) }}" class="block aspect-[4/3] overflow-hidden bg-gray-100 relative">
                             <img src="{{ $product->image_url }}" alt="{{ $product->name }}" class="w-full h-full object-cover">
+                            <x-product-condition-badge :condition="$product->condition" class="absolute top-2 left-2" />
                         </a>
                         <div class="p-4">
                             <a wire:navigate href="{{ route('product.detail', $product->slug) }}" class="font-semibold text-gray-900 hover:text-deep line-clamp-1">

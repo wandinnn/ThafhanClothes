@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ProductCondition;
 use App\Support\ProductOptions;
 use Database\Factories\ProductFactory;
 use Illuminate\Database\Eloquent\Collection;
@@ -30,6 +31,7 @@ class Product extends Model
         'original_price',
         'image_url',
         'stock', // ditambahkan
+        'condition',
         'is_best_seller',
         'is_new_arrival',
         'is_flash_sale',
@@ -38,6 +40,7 @@ class Product extends Model
     protected function casts(): array
     {
         return [
+            'condition' => ProductCondition::class,
             'is_best_seller' => 'boolean',
             'is_new_arrival' => 'boolean',
             'is_flash_sale' => 'boolean',

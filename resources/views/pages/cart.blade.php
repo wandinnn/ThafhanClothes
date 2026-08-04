@@ -70,6 +70,9 @@ new class extends Component {
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <h1 class="text-3xl font-bold text-ink">Keranjang Belanja</h1>
             <div class="gold-line mt-2 mb-0"></div>
+            <p class="mt-3 max-w-2xl text-sm !text-white leading-relaxed">
+                Review barang pilihanmu sebelum checkout — pastikan ukuran, warna, dan jumlah sudah pas.
+            </p>
         </div>
     </section>
 
@@ -226,7 +229,7 @@ new class extends Component {
                             Checkout
                         </a>
                         <a wire:navigate href="{{ route('products') }}"
-                           class="block w-full text-center px-6 py-3 border border-gray-300 text-ink hover:bg-gray-50 font-semibold rounded-lg transition-colors">
+                           class="block w-full text-center px-6 py-3 bg-deep hover:bg-deep-dark border border-deep !text-cream font-semibold rounded-lg transition-colors">
                             Lanjut Belanja
                         </a>
                     </div>
