@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Support\ProductOptions;
 use Illuminate\Database\Seeder;
 
 class ProductSeeder extends Seeder
@@ -169,8 +170,45 @@ class ProductSeeder extends Seeder
             ],
         ];
 
+        $flashSaleSlugs = [
+            'kemeja-flanel-kotak-kotak',
+            't-shirt-premium-cotton',
+            'jaket-bomber-hitam',
+            'sepatu-sneakers-putih',
+        ];
+
         foreach ($products as $product) {
-            Product::create($product);
+            $product['stock'] ??= 25;
+            $product['is_flash_sale'] = in_array($product['slug'], $flashSaleSlugs, true);
+
+            if ($product['is_flash_sale']) {
+                $product['original_price'] = (int) round($product['price'] * 1.25);
+            }
+
+            $this->seedVariants(Product::updateOrCreate(['slug' => $product['slug']], $product));
         }
+    }
+
+    /**
+     * Isi stok per ukuran dan warna. Baris yang sudah ada dibiarkan apa adanya
+     * supaya penyesuaian stok dari panel admin tidak tertimpa saat seeding ulang.
+     */
+    private function seedVariants(Product $product): void
+    {
+        $product->loadMissing('category');
+
+        foreach (ProductOptions::sizesFor($product) as $size) {
+            foreach (['Hitam', 'Putih', 'Navy'] as $color) {
+                $product->variants()->firstOrCreate(
+                    ['size' => $size, 'color' => $color],
+                    [
+                        'stock' => 4,
+                        'sku' => sprintf('TC%d-%s-%s', $product->id, strtoupper($size), strtoupper(substr($color, 0, 3))),
+                    ],
+                );
+            }
+        }
+
+        $product->syncStockFromVariants();
     }
 }

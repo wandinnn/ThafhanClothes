@@ -12,10 +12,12 @@ class Order extends Model
         'city', 'address', 'notes', 'subtotal', 'discount', 'shipping_cost',
         'total', 'coupon_code', 'status', 'payment_method',
         'payment_proof_path', 'paid_at',
+        'shipping_courier', 'tracking_number', 'shipped_at',
     ];
 
     protected $casts = [
         'paid_at' => 'datetime',
+        'shipped_at' => 'datetime',
         'subtotal' => 'integer',
         'discount' => 'integer',
         'shipping_cost' => 'integer',
@@ -32,9 +34,20 @@ class Order extends Model
         'cancelled' => 'Dibatalkan',
     ];
 
+    /** @var list<string> */
+    public const COURIERS = [
+        'JNE', 'J&T Express', 'SiCepat', 'AnterAja', 'Ninja Xpress',
+        'POS Indonesia', 'TIKI', 'Lion Parcel', 'ID Express', 'Instant (Gojek/Grab)',
+    ];
+
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function hasShipmentInfo(): bool
+    {
+        return filled($this->tracking_number) && filled($this->shipping_courier);
     }
 
     public function getStatusLabelAttribute(): string

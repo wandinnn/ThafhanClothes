@@ -123,4 +123,18 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Akun Admin
+    |--------------------------------------------------------------------------
+    |
+    | Kredensial akun admin yang dibuat oleh AdminUserSeeder. Password wajib
+    | diisi lewat environment sebelum seeding di production.
+    |
+    */
+
+    'admin_email' => env('ADMIN_EMAIL', 'admin@thafhanclothes.test'),
+
+    'admin_password' => env('ADMIN_PASSWORD'),
+
 ];

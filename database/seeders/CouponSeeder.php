@@ -9,7 +9,7 @@ class CouponSeeder extends Seeder
 {
     public function run(): void
     {
-        Coupon::insert([
+        $coupons = [
             [
                 'code' => 'THAFHAN10',
                 'type' => 'percent',
@@ -17,8 +17,6 @@ class CouponSeeder extends Seeder
                 'min_order' => 100000,
                 'description' => 'Diskon 10% min. belanja Rp100.000',
                 'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now(),
             ],
             [
                 'code' => 'GRATIS50K',
@@ -27,9 +25,11 @@ class CouponSeeder extends Seeder
                 'min_order' => 300000,
                 'description' => 'Potongan Rp50.000 min. belanja Rp300.000',
                 'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now(),
             ],
-        ]);
+        ];
+
+        foreach ($coupons as $coupon) {
+            Coupon::updateOrCreate(['code' => $coupon['code']], $coupon);
+        }
     }
 }

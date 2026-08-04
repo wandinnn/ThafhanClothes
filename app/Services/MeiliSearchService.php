@@ -7,21 +7,30 @@ use Meilisearch\Client;
 
 class MeiliSearchService
 {
-    private Client $client;
+    private ?Client $client = null;
 
     private string $indexName;
 
     public function __construct()
     {
-        $host = config('meilisearch.host');
-        $key = config('meilisearch.key');
         $this->indexName = config('meilisearch.index', 'products');
-        $this->client = new Client($host, $key);
     }
 
     public function isEnabled(): bool
     {
         return (bool) config('meilisearch.enabled');
+    }
+
+    /**
+     * Client dibuat saat dibutuhkan saja, agar aplikasi tetap bisa jalan
+     * ketika Meilisearch dimatikan atau tidak terpasang.
+     */
+    private function client(): Client
+    {
+        return $this->client ??= new Client(
+            config('meilisearch.host'),
+            config('meilisearch.key'),
+        );
     }
 
     public function indexProduct(Product $p): void
@@ -40,7 +49,7 @@ class MeiliSearchService
             'slug' => $p->slug,
         ];
 
-        $index = $this->client->index($this->indexName);
+        $index = $this->client()->index($this->indexName);
         $index->addDocuments([$doc]);
     }
 
@@ -50,7 +59,7 @@ class MeiliSearchService
             return;
         }
 
-        $index = $this->client->index($this->indexName);
+        $index = $this->client()->index($this->indexName);
         $index->deleteDocument($id);
     }
 
@@ -60,7 +69,7 @@ class MeiliSearchService
             return [];
         }
 
-        $index = $this->client->index($this->indexName);
+        $index = $this->client()->index($this->indexName);
         $params = array_merge([
             'limit' => $options['limit'] ?? 12,
             'attributesToRetrieve' => ['id', 'name', 'slug', 'price', 'image_url'],
@@ -92,7 +101,7 @@ class MeiliSearchService
         }
 
         if (! empty($docs)) {
-            $index = $this->client->index($this->indexName);
+            $index = $this->client()->index($this->indexName);
             $index->addDocuments($docs);
         }
     }
